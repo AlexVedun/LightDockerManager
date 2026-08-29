@@ -5,8 +5,33 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-APPIMAGETOOL="${APPIMAGETOOL:-appimagetool}"
 PYTHON="${PYTHON:-.venv/bin/python}"
+
+resolve_appimagetool() {
+    if [ -n "${APPIMAGETOOL:-}" ]; then
+        echo "$APPIMAGETOOL"
+        return
+    fi
+    if command -v appimagetool >/dev/null 2>&1; then
+        command -v appimagetool
+        return
+    fi
+    for candidate in "$HOME/appimagetool.AppImage" "$HOME/Applications/appimagetool.AppImage" "/opt/appimagetool/appimagetool.AppImage"; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo ""
+}
+
+APPIMAGETOOL="$(resolve_appimagetool)"
+if [ -z "$APPIMAGETOOL" ]; then
+    echo "appimagetool not found." >&2
+    echo "Install it, add it to PATH, or set APPIMAGETOOL=/path/to/appimagetool.AppImage" >&2
+    exit 1
+fi
+echo "Using appimagetool: $APPIMAGETOOL"
 
 rm -rf build dist AppDir
 
