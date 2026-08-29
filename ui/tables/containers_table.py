@@ -1,4 +1,3 @@
-import docker.errors
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -12,9 +11,11 @@ from PySide6.QtWidgets import (
 )
 
 from docker_services import containers as containers_service
+from docker_services.common import reload_and_get_attrs
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
+from workers.task_worker import run_task
 
 STATUS_COLORS = {
     "running": QColor("#2ecc71"),
@@ -74,6 +75,7 @@ class ContainersTab(QWidget):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self.model = ContainersTableModel()
+        self._refreshing = False
 
         self.view = QTableView(self)
         self.view.setModel(self.model)
@@ -128,12 +130,24 @@ class ContainersTab(QWidget):
         if client is None:
             self.model.set_rows([])
             return
-        try:
-            rows = containers_service.list_containers(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
+        if self._refreshing:
             return
+        self._refreshing = True
+        run_task(
+            self,
+            containers_service.list_containers,
+            client,
+            on_success=self._on_refresh_succeeded,
+            on_error=self._on_refresh_failed,
+        )
+
+    def _on_refresh_succeeded(self, rows):
+        self._refreshing = False
         self.model.set_rows(rows)
+
+    def _on_refresh_failed(self, message):
+        self._refreshing = False
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
 
     def _selected_row(self):
         indexes = self.view.selectionModel().selectedRows()
@@ -141,15 +155,21 @@ class ContainersTab(QWidget):
             return None
         return self.model.row_at(indexes[0].row())
 
+    def _on_action_failed(self, message):
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self.refresh()
+
     def _run_action(self, action):
         row = self._selected_row()
         if row is None:
             return
-        try:
-            action(row["container"])
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            action,
+            row["container"],
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _remove_selected(self):
         row = self._selected_row()
@@ -157,11 +177,14 @@ class ContainersTab(QWidget):
             return
         if not confirm(self, self.tr("Remove Container"), self.tr('Remove container "{name}"?').format(name=row["name"])):
             return
-        try:
-            containers_service.remove(row["container"], force=True)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            containers_service.remove,
+            row["container"],
+            force=True,
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _show_logs(self):
         row = self._selected_row()
@@ -174,11 +197,11 @@ class ContainersTab(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        container = row["container"]
-        try:
-            container.reload()
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
-        dialog = InspectDialog(self.tr("Inspect: {name}").format(name=row["name"]), container.attrs, self)
-        dialog.exec()
+        name = row["name"]
+        run_task(
+            self,
+            reload_and_get_attrs,
+            row["container"],
+            on_success=lambda attrs: InspectDialog(self.tr("Inspect: {name}").format(name=name), attrs, self).exec(),
+            on_error=self._on_action_failed,
+        )

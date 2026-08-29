@@ -1,5 +1,4 @@
 import docker
-import docker.errors
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
 from connection.profiles import load_profiles
 from docker_services.volume_transfer import transfer_volume
 from ui.dialogs.confirm_dialog import confirm
+from workers.task_worker import run_task
 
 class TransferWorker(QThread):
     log_message = Signal(str)
@@ -63,42 +63,80 @@ class HostPicker(QGroupBox):
         layout.addWidget(self.volume_combo)
 
         self._client_cache = {}
+        self._pending_selection = None
         self._reload_volumes()
 
-    def _get_client(self):
-        data = self.combo.currentData()
-        if data is None:
-            return None
-        key = data["type"] if data["type"] == "local" else data["profile"]["name"]
-        if key in self._client_cache:
-            return self._client_cache[key]
-        try:
-            if data["type"] == "local":
-                client = docker.from_env()
-            else:
-                profile = data["profile"]
-                base_url = f"ssh://{profile['user']}@{profile['host']}:{profile.get('port', 22)}"
-                client = docker.DockerClient(base_url=base_url, use_ssh_client=True)
-            client.ping()
-        except Exception as exc:
-            QMessageBox.critical(self, self.tr("Connection Error"), str(exc))
-            return None
-        self._client_cache[key] = client
-        return client
+    def preselect_volume(self, name):
+        index = self.volume_combo.findText(name)
+        if index >= 0:
+            self.volume_combo.setCurrentIndex(index)
+        else:
+            self._pending_selection = name
+
+    @staticmethod
+    def _cache_key(data):
+        return data["type"] if data["type"] == "local" else data["profile"]["name"]
+
+    @staticmethod
+    def _connect_and_list_volume_names(data):
+        if data["type"] == "local":
+            client = docker.from_env()
+        else:
+            profile = data["profile"]
+            base_url = f"ssh://{profile['user']}@{profile['host']}:{profile.get('port', 22)}"
+            client = docker.DockerClient(base_url=base_url, use_ssh_client=True)
+        client.ping()
+        names = [volume.name for volume in client.volumes.list()]
+        return client, names
 
     def _reload_volumes(self):
         self.volume_combo.clear()
-        client = self._get_client()
-        if client is None:
+        data = self.combo.currentData()
+        if data is None:
             return
-        try:
-            for volume in client.volumes.list():
-                self.volume_combo.addItem(volume.name)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
+        key = self._cache_key(data)
+        cached = self._client_cache.get(key)
+        if cached is not None:
+            for name in cached["volumes"]:
+                self.volume_combo.addItem(name)
+            return
+        self.combo.setEnabled(False)
+        run_task(
+            self,
+            self._connect_and_list_volume_names,
+            data,
+            on_success=lambda result: self._on_volumes_loaded(key, result),
+            on_error=lambda message: self._on_volumes_failed(key, message),
+        )
+
+    def _on_volumes_loaded(self, key, result):
+        client, names = result
+        self._client_cache[key] = {"client": client, "volumes": names}
+        self.combo.setEnabled(True)
+        current_data = self.combo.currentData()
+        if current_data is None or self._cache_key(current_data) != key:
+            return
+        self.volume_combo.clear()
+        for name in names:
+            self.volume_combo.addItem(name)
+        if self._pending_selection is not None:
+            index = self.volume_combo.findText(self._pending_selection)
+            if index >= 0:
+                self.volume_combo.setCurrentIndex(index)
+            self._pending_selection = None
+
+    def _on_volumes_failed(self, key, message):
+        self.combo.setEnabled(True)
+        current_data = self.combo.currentData()
+        if current_data is not None and self._cache_key(current_data) == key:
+            QMessageBox.critical(self, self.tr("Connection Error"), message)
 
     def selected_client(self):
-        return self._get_client()
+        data = self.combo.currentData()
+        if data is None:
+            return None
+        cached = self._client_cache.get(self._cache_key(data))
+        return cached["client"] if cached else None
 
     def selected_volume(self):
         return self.volume_combo.currentText()
@@ -144,6 +182,11 @@ class VolumeTransferWindow(QDialog):
         dest_volume = self.dest_name_edit.text().strip() or source_volume
 
         if source_client is None or dest_client is None:
+            QMessageBox.warning(
+                self,
+                self.tr("Volume Transfer"),
+                self.tr("Still connecting to the selected host(s), please try again shortly."),
+            )
             return
         if not source_volume:
             QMessageBox.warning(self, self.tr("Volume Transfer"), self.tr("Please select a source volume."))

@@ -1,4 +1,3 @@
-import docker.errors
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -12,10 +11,12 @@ from PySide6.QtWidgets import (
 )
 
 from docker_services import images as images_service
+from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import human_size, short_timestamp, summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
+from workers.task_worker import run_task
 
 USED_COLUMN = 3
 USED_COLOR = QColor("#2ecc71")
@@ -30,6 +31,7 @@ class ImagesTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
+        self._refreshing = False
 
         columns = [
             self.tr("Repository:Tag"),
@@ -82,18 +84,34 @@ class ImagesTab(QWidget):
         if client is None:
             self.model.set_rows([])
             return
-        try:
-            rows = images_service.list_images(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
+        if self._refreshing:
             return
+        self._refreshing = True
+        run_task(
+            self,
+            images_service.list_images,
+            client,
+            on_success=self._on_refresh_succeeded,
+            on_error=self._on_refresh_failed,
+        )
+
+    def _on_refresh_succeeded(self, rows):
+        self._refreshing = False
         self.model.set_rows(rows)
+
+    def _on_refresh_failed(self, message):
+        self._refreshing = False
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
 
     def _selected_row(self):
         indexes = self.view.selectionModel().selectedRows()
         if not indexes:
             return None
         return self.model.row_at(indexes[0].row())
+
+    def _on_action_failed(self, message):
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self.refresh()
 
     def _pull_image(self):
         client = self.connection_manager.client
@@ -102,11 +120,14 @@ class ImagesTab(QWidget):
         repo_tag, ok = QInputDialog.getText(self, self.tr("Pull Image"), self.tr("Image name (e.g. nginx:latest):"))
         if not ok or not repo_tag.strip():
             return
-        try:
-            images_service.pull(client, repo_tag.strip())
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            images_service.pull,
+            client,
+            repo_tag.strip(),
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _remove_selected(self):
         row = self._selected_row()
@@ -114,23 +135,27 @@ class ImagesTab(QWidget):
             return
         if not confirm(self, self.tr("Remove Image"), self.tr('Remove image "{tags}"?').format(tags=row["tags"])):
             return
-        try:
-            images_service.remove(row["image"], force=True)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            images_service.remove,
+            row["image"],
+            force=True,
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _show_inspect(self):
         row = self._selected_row()
         if row is None:
             return
-        image = row["image"]
-        try:
-            image.reload()
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
-        InspectDialog(self.tr("Inspect: {tags}").format(tags=row["tags"]), image.attrs, self).exec()
+        tags = row["tags"]
+        run_task(
+            self,
+            reload_and_get_attrs,
+            row["image"],
+            on_success=lambda attrs: InspectDialog(self.tr("Inspect: {tags}").format(tags=tags), attrs, self).exec(),
+            on_error=self._on_action_failed,
+        )
 
     def _prune(self):
         client = self.connection_manager.client
@@ -138,10 +163,14 @@ class ImagesTab(QWidget):
             return
         if not confirm(self, self.tr("Prune Images"), self.tr("Remove all unused images?")):
             return
-        try:
-            result = images_service.prune(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
+        run_task(
+            self,
+            images_service.prune,
+            client,
+            on_success=self._on_prune_succeeded,
+            on_error=self._on_action_failed,
+        )
+
+    def _on_prune_succeeded(self, result):
         QMessageBox.information(self, self.tr("Prune Complete"), summarize_prune_result(result))
         self.refresh()

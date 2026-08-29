@@ -19,6 +19,7 @@ from ui.tables.images_table import ImagesTab
 from ui.tables.networks_table import NetworksTab
 from ui.tables.volumes_table import VolumesTab
 from ui.volume_transfer_window import VolumeTransferWindow
+from workers.task_worker import run_task
 
 FULL_REFRESH_INTERVAL_MS = 10000
 EVENTS_RETRY_DELAY_MS = 3000
@@ -138,20 +139,39 @@ class MainWindow(QMainWindow):
             self._switch_to_remote(data["profile"])
 
     def _switch_to_local(self):
-        try:
-            self.connection_manager.connect_local()
-        except Exception as exc:
-            QMessageBox.critical(self, self.tr("Connection Error"), str(exc))
-        self._after_connection_changed()
+        self.connection_combo.setEnabled(False)
+        self.status_label.setText(self.tr("Connecting..."))
+        run_task(
+            self,
+            self.connection_manager.connect_local,
+            on_success=lambda _: self._on_connect_finished(),
+            on_error=lambda message: self._on_connect_failed(message),
+        )
 
     def _switch_to_remote(self, profile):
-        try:
-            self.connection_manager.connect_remote(profile)
-        except Exception as exc:
+        self.connection_combo.setEnabled(False)
+        self.status_label.setText(self.tr("Connecting..."))
+        run_task(
+            self,
+            self.connection_manager.connect_remote,
+            profile,
+            on_success=lambda _: self._on_connect_finished(),
+            on_error=lambda message: self._on_connect_failed(message, profile),
+        )
+
+    def _on_connect_finished(self):
+        self.connection_combo.setEnabled(True)
+        self._after_connection_changed()
+
+    def _on_connect_failed(self, message, profile=None):
+        self.connection_combo.setEnabled(True)
+        if profile is None:
+            QMessageBox.critical(self, self.tr("Connection Error"), message)
+        else:
             QMessageBox.critical(
                 self,
                 self.tr("Connection Error"),
-                self.tr('Could not connect to "{name}":\n{error}').format(name=profile["name"], error=exc),
+                self.tr('Could not connect to "{name}":\n{error}').format(name=profile["name"], error=message),
             )
         self._after_connection_changed()
 
@@ -211,4 +231,7 @@ class MainWindow(QMainWindow):
         if self.events_listener is not None:
             self.events_listener.stop()
             self.events_listener.wait(3000)
+        for owner in (self, *self._tabs_by_entity.values()):
+            for worker in list(getattr(owner, "_background_workers", [])):
+                worker.wait(3000)
         super().closeEvent(event)

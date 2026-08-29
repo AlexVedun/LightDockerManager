@@ -1,4 +1,3 @@
-import docker.errors
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -11,11 +10,13 @@ from PySide6.QtWidgets import (
 )
 
 from docker_services import volumes as volumes_service
+from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import human_size, summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
 from ui.volume_transfer_window import VolumeTransferWindow
+from workers.task_worker import run_task
 
 USED_COLUMN = 3
 USED_COLOR = QColor("#2ecc71")
@@ -30,6 +31,7 @@ class VolumesTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
+        self._refreshing = False
 
         columns = [
             self.tr("Name"),
@@ -82,12 +84,24 @@ class VolumesTab(QWidget):
         if client is None:
             self.model.set_rows([])
             return
-        try:
-            rows = volumes_service.list_volumes(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
+        if self._refreshing:
             return
+        self._refreshing = True
+        run_task(
+            self,
+            volumes_service.list_volumes,
+            client,
+            on_success=self._on_refresh_succeeded,
+            on_error=self._on_refresh_failed,
+        )
+
+    def _on_refresh_succeeded(self, rows):
+        self._refreshing = False
         self.model.set_rows(rows)
+
+    def _on_refresh_failed(self, message):
+        self._refreshing = False
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
 
     def _selected_row(self):
         indexes = self.view.selectionModel().selectedRows()
@@ -95,29 +109,37 @@ class VolumesTab(QWidget):
             return None
         return self.model.row_at(indexes[0].row())
 
+    def _on_action_failed(self, message):
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self.refresh()
+
     def _remove_selected(self):
         row = self._selected_row()
         if row is None:
             return
         if not confirm(self, self.tr("Remove Volume"), self.tr('Remove volume "{name}"?').format(name=row["name"])):
             return
-        try:
-            volumes_service.remove(row["volume"], force=True)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            volumes_service.remove,
+            row["volume"],
+            force=True,
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _show_inspect(self):
         row = self._selected_row()
         if row is None:
             return
-        volume = row["volume"]
-        try:
-            volume.reload()
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
-        InspectDialog(self.tr("Inspect: {name}").format(name=row["name"]), volume.attrs, self).exec()
+        name = row["name"]
+        run_task(
+            self,
+            reload_and_get_attrs,
+            row["volume"],
+            on_success=lambda attrs: InspectDialog(self.tr("Inspect: {name}").format(name=name), attrs, self).exec(),
+            on_error=self._on_action_failed,
+        )
 
     def _prune(self):
         client = self.connection_manager.client
@@ -125,11 +147,15 @@ class VolumesTab(QWidget):
             return
         if not confirm(self, self.tr("Prune Volumes"), self.tr("Remove all unused volumes?")):
             return
-        try:
-            result = volumes_service.prune(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
+        run_task(
+            self,
+            volumes_service.prune,
+            client,
+            on_success=self._on_prune_succeeded,
+            on_error=self._on_action_failed,
+        )
+
+    def _on_prune_succeeded(self, result):
         QMessageBox.information(self, self.tr("Prune Complete"), summarize_prune_result(result))
         self.refresh()
 
@@ -137,6 +163,6 @@ class VolumesTab(QWidget):
         row = self._selected_row()
         window = VolumeTransferWindow(self)
         if row is not None:
-            window.source_picker.volume_combo.setCurrentText(row["name"])
+            window.source_picker.preselect_volume(row["name"])
         window.exec()
         self.refresh()

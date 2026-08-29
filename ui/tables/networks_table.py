@@ -1,4 +1,3 @@
-import docker.errors
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -12,10 +11,12 @@ from PySide6.QtWidgets import (
 )
 
 from docker_services import networks as networks_service
+from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
+from workers.task_worker import run_task
 
 USED_COLUMN = 4
 USED_COLOR = QColor("#2ecc71")
@@ -30,6 +31,7 @@ class NetworksTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
+        self._refreshing = False
 
         columns = [
             self.tr("Name"),
@@ -91,12 +93,24 @@ class NetworksTab(QWidget):
         if client is None:
             self.model.set_rows([])
             return
-        try:
-            rows = networks_service.list_networks(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
+        if self._refreshing:
             return
+        self._refreshing = True
+        run_task(
+            self,
+            networks_service.list_networks,
+            client,
+            on_success=self._on_refresh_succeeded,
+            on_error=self._on_refresh_failed,
+        )
+
+    def _on_refresh_succeeded(self, rows):
+        self._refreshing = False
         self.model.set_rows(rows)
+
+    def _on_refresh_failed(self, message):
+        self._refreshing = False
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
 
     def _selected_row(self):
         indexes = self.view.selectionModel().selectedRows()
@@ -104,35 +118,38 @@ class NetworksTab(QWidget):
             return None
         return self.model.row_at(indexes[0].row())
 
+    def _on_action_failed(self, message):
+        QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self.refresh()
+
     def _remove_selected(self):
         row = self._selected_row()
         if row is None:
             return
         if not confirm(self, self.tr("Remove Network"), self.tr('Remove network "{name}"?').format(name=row["name"])):
             return
-        try:
-            networks_service.remove(row["network"])
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            networks_service.remove,
+            row["network"],
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _show_inspect(self):
         row = self._selected_row()
         if row is None:
             return
-        network = row["network"]
-        try:
-            network.reload()
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
-        InspectDialog(self.tr("Inspect: {name}").format(name=row["name"]), network.attrs, self).exec()
+        name = row["name"]
+        run_task(
+            self,
+            reload_and_get_attrs,
+            row["network"],
+            on_success=lambda attrs: InspectDialog(self.tr("Inspect: {name}").format(name=name), attrs, self).exec(),
+            on_error=self._on_action_failed,
+        )
 
-    def _pick_container(self, title):
-        client = self.connection_manager.client
-        if client is None:
-            return None
-        containers = client.containers.list(all=True)
+    def _pick_container_from_list(self, title, containers):
         if not containers:
             QMessageBox.information(self, title, self.tr("No containers available."))
             return None
@@ -146,27 +163,55 @@ class NetworksTab(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        container = self._pick_container(self.tr("Connect Container to Network"))
+        client = self.connection_manager.client
+        if client is None:
+            return
+        run_task(
+            self,
+            lambda: client.containers.list(all=True),
+            on_success=lambda containers: self._prompt_and_connect(row, containers),
+            on_error=self._on_action_failed,
+        )
+
+    def _prompt_and_connect(self, row, containers):
+        container = self._pick_container_from_list(self.tr("Connect Container to Network"), containers)
         if container is None:
             return
-        try:
-            networks_service.connect(row["network"], container)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            networks_service.connect,
+            row["network"],
+            container,
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _disconnect_container(self):
         row = self._selected_row()
         if row is None:
             return
-        container = self._pick_container(self.tr("Disconnect Container from Network"))
+        client = self.connection_manager.client
+        if client is None:
+            return
+        run_task(
+            self,
+            lambda: client.containers.list(all=True),
+            on_success=lambda containers: self._prompt_and_disconnect(row, containers),
+            on_error=self._on_action_failed,
+        )
+
+    def _prompt_and_disconnect(self, row, containers):
+        container = self._pick_container_from_list(self.tr("Disconnect Container from Network"), containers)
         if container is None:
             return
-        try:
-            networks_service.disconnect(row["network"], container)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-        self.refresh()
+        run_task(
+            self,
+            networks_service.disconnect,
+            row["network"],
+            container,
+            on_success=lambda _: self.refresh(),
+            on_error=self._on_action_failed,
+        )
 
     def _prune(self):
         client = self.connection_manager.client
@@ -174,10 +219,14 @@ class NetworksTab(QWidget):
             return
         if not confirm(self, self.tr("Prune Networks"), self.tr("Remove all unused networks?")):
             return
-        try:
-            result = networks_service.prune(client)
-        except docker.errors.APIError as exc:
-            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
-            return
+        run_task(
+            self,
+            networks_service.prune,
+            client,
+            on_success=self._on_prune_succeeded,
+            on_error=self._on_action_failed,
+        )
+
+    def _on_prune_succeeded(self, result):
         QMessageBox.information(self, self.tr("Prune Complete"), summarize_prune_result(result))
         self.refresh()
