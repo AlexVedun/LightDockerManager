@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
 
 from docker_services import containers as containers_service
 from ui.dialogs.confirm_dialog import confirm
+from ui.dialogs.inspect_dialog import InspectDialog
+from ui.dialogs.logs_viewer import LogsViewerDialog
 
 COLUMNS = ["", "Name", "Image", "Status", "Ports"]
 
@@ -88,6 +90,8 @@ class ContainersTab(QWidget):
         self.btn_pause = QPushButton("Pause")
         self.btn_unpause = QPushButton("Unpause")
         self.btn_remove = QPushButton("Remove")
+        self.btn_logs = QPushButton("Logs")
+        self.btn_inspect = QPushButton("Inspect")
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_start.clicked.connect(lambda: self._run_action(containers_service.start))
@@ -96,6 +100,8 @@ class ContainersTab(QWidget):
         self.btn_pause.clicked.connect(lambda: self._run_action(containers_service.pause))
         self.btn_unpause.clicked.connect(lambda: self._run_action(containers_service.unpause))
         self.btn_remove.clicked.connect(self._remove_selected)
+        self.btn_logs.clicked.connect(self._show_logs)
+        self.btn_inspect.clicked.connect(self._show_inspect)
 
         toolbar = QHBoxLayout()
         for btn in (
@@ -106,6 +112,8 @@ class ContainersTab(QWidget):
             self.btn_pause,
             self.btn_unpause,
             self.btn_remove,
+            self.btn_logs,
+            self.btn_inspect,
         ):
             toolbar.addWidget(btn)
         toolbar.addStretch()
@@ -155,3 +163,23 @@ class ContainersTab(QWidget):
         except docker.errors.APIError as exc:
             QMessageBox.critical(self, "Ошибка Docker", str(exc))
         self.refresh()
+
+    def _show_logs(self):
+        row = self._selected_row()
+        if row is None:
+            return
+        dialog = LogsViewerDialog(row["container"], row["name"], self)
+        dialog.exec()
+
+    def _show_inspect(self):
+        row = self._selected_row()
+        if row is None:
+            return
+        container = row["container"]
+        try:
+            container.reload()
+        except docker.errors.APIError as exc:
+            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            return
+        dialog = InspectDialog(f"Inspect: {row['name']}", container.attrs, self)
+        dialog.exec()
