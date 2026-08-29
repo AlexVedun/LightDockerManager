@@ -6,5 +6,6 @@ venv/
 build/
 dist/
 AppDir/
+distribution/
 *.spec
 .idea/

@@ -33,7 +33,10 @@ if [ -z "$APPIMAGETOOL" ]; then
 fi
 echo "Using appimagetool: $APPIMAGETOOL"
 
-rm -rf build dist AppDir
+DIST_DIR="$PROJECT_ROOT/distribution"
+
+rm -rf build dist AppDir "$DIST_DIR"
+mkdir -p "$DIST_DIR"
 
 "$PYTHON" -m PyInstaller \
     --name LightDockerManager \
@@ -54,6 +57,7 @@ exec "$HERE/LightDockerManager" "$@"
 EOF
 chmod +x AppDir/AppRun
 
-"$APPIMAGETOOL" AppDir "$PROJECT_ROOT/LightDockerManager-x86_64.AppImage"
+"$APPIMAGETOOL" AppDir "$DIST_DIR/LightDockerManager-x86_64.AppImage"
+rm -rf build dist AppDir
 
-echo "Built: $PROJECT_ROOT/LightDockerManager-x86_64.AppImage"
+echo "Built: $DIST_DIR/LightDockerManager-x86_64.AppImage"
