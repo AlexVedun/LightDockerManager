@@ -150,6 +150,7 @@ class VolumesTab(QWidget):
         self.refresh()
 
     def _on_bulk_action_finished(self, errors):
+        self.model.set_all_checked(False)
         if errors:
             QMessageBox.critical(self, self.tr("Docker Error"), "\n".join(errors))
         self.refresh()
