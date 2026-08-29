@@ -1,3 +1,5 @@
+import threading
+
 from PySide6.QtCore import QThread, Signal
 
 EVENT_TYPE_MAP = {
@@ -19,18 +21,28 @@ class DockerEventsListener(QThread):
         self.client = client
         self._stream = None
         self._stopped = False
+        self._lock = threading.Lock()
 
     def stop(self):
-        self._stopped = True
-        if self._stream is not None:
-            try:
-                self._stream.close()
-            except Exception:
-                pass
+        with self._lock:
+            self._stopped = True
+            if self._stream is not None:
+                try:
+                    self._stream.close()
+                except Exception:
+                    pass
 
     def run(self):
+        with self._lock:
+            if self._stopped:
+                return
+            try:
+                self._stream = self.client.events(decode=True)
+            except Exception as exc:
+                self.connection_lost.emit(str(exc))
+                return
+
         try:
-            self._stream = self.client.events(decode=True)
             for event in self._stream:
                 entity_type = EVENT_TYPE_MAP.get(event.get("Type"))
                 if entity_type:

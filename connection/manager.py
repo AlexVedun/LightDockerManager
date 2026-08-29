@@ -23,6 +23,21 @@ class ConnectionManager:
         self.mode = "local"
         self.error = None
 
+    def connect_remote(self, profile):
+        base_url = f"ssh://{profile['user']}@{profile['host']}:{profile.get('port', 22)}"
+        try:
+            client = docker.DockerClient(base_url=base_url, use_ssh_client=True)
+            client.ping()
+        except Exception as exc:
+            self._client = None
+            self.mode = None
+            self.error = str(exc)
+            raise
+
+        self._client = client
+        self.mode = f"remote:{profile['name']}"
+        self.error = None
+
     @property
     def client(self):
         return self._client
