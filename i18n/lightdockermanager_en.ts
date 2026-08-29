@@ -545,6 +545,14 @@
     </message>
 </context>
 <context>
+    <name>TaskWorker</name>
+    <message>
+        <location filename="../workers/task_worker.py" line="22"/>
+        <source>This item no longer exists. It may have been removed or recreated outside this application. The list has been refreshed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>VolumeTransfer</name>
     <message>
         <location filename="../docker_services/volume_transfer.py" line="16"/>

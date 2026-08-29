@@ -1,3 +1,4 @@
+import docker.errors
 from PySide6.QtCore import QThread, Signal
 
 
@@ -16,6 +17,12 @@ class TaskWorker(QThread):
     def run(self):
         try:
             result = self._func(*self._args, **self._kwargs)
+        except docker.errors.NotFound:
+            self.failed.emit(self.tr(
+                "This item no longer exists. It may have been removed or "
+                "recreated outside this application. The list has been refreshed."
+            ))
+            return
         except Exception as exc:
             self.failed.emit(str(exc))
             return
