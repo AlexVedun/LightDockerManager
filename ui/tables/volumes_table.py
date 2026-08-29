@@ -15,6 +15,7 @@ from docker_services.formatting import human_size, summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
+from ui.volume_transfer_window import VolumeTransferWindow
 
 COLUMNS = ["Имя", "Driver", "Точка монтирования", "Используется", "Размер"]
 ACCESSORS = [
@@ -50,14 +51,16 @@ class VolumesTab(QWidget):
         self.btn_remove = QPushButton("Remove")
         self.btn_inspect = QPushButton("Inspect")
         self.btn_prune = QPushButton("Prune")
+        self.btn_transfer = QPushButton("Перенести на другой хост")
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_remove.clicked.connect(self._remove_selected)
         self.btn_inspect.clicked.connect(self._show_inspect)
         self.btn_prune.clicked.connect(self._prune)
+        self.btn_transfer.clicked.connect(self._open_transfer_window)
 
         toolbar = QHBoxLayout()
-        for btn in (self.btn_refresh, self.btn_remove, self.btn_inspect, self.btn_prune):
+        for btn in (self.btn_refresh, self.btn_remove, self.btn_inspect, self.btn_prune, self.btn_transfer):
             toolbar.addWidget(btn)
         toolbar.addStretch()
 
@@ -121,4 +124,12 @@ class VolumesTab(QWidget):
             QMessageBox.critical(self, "Ошибка Docker", str(exc))
             return
         QMessageBox.information(self, "Prune завершён", summarize_prune_result(result))
+        self.refresh()
+
+    def _open_transfer_window(self):
+        row = self._selected_row()
+        window = VolumeTransferWindow(self)
+        if row is not None:
+            window.source_picker.volume_combo.setCurrentText(row["name"])
+        window.exec()
         self.refresh()

@@ -17,6 +17,7 @@ from ui.tables.containers_table import ContainersTab
 from ui.tables.images_table import ImagesTab
 from ui.tables.networks_table import NetworksTab
 from ui.tables.volumes_table import VolumesTab
+from ui.volume_transfer_window import VolumeTransferWindow
 
 FULL_REFRESH_INTERVAL_MS = 10000
 EVENTS_RETRY_DELAY_MS = 3000
@@ -80,6 +81,15 @@ class MainWindow(QMainWindow):
         settings_menu = self.menuBar().addMenu("Настройки")
         manage_action = settings_menu.addAction("Подключения...")
         manage_action.triggered.connect(self._open_manage_connections)
+
+        tools_menu = self.menuBar().addMenu("Инструменты")
+        transfer_action = tools_menu.addAction("Перенос Volume...")
+        transfer_action.triggered.connect(self._open_volume_transfer)
+
+    def _open_volume_transfer(self):
+        window = VolumeTransferWindow(self)
+        window.exec()
+        self.volumes_tab.refresh()
 
     # -- connection switching -------------------------------------------------
 
