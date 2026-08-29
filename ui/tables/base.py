@@ -43,12 +43,6 @@ class DictRowsTableModel(QAbstractTableModel):
             return self._columns[section]
         return None
 
-    def flags(self, index):
-        flags = super().flags(index)
-        if index.column() == self.CHECKBOX_COLUMN:
-            flags |= Qt.ItemIsUserCheckable
-        return flags
-
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
@@ -97,6 +91,24 @@ class DictRowsTableModel(QAbstractTableModel):
         top_left = self.index(0, self.CHECKBOX_COLUMN)
         bottom_right = self.index(len(self._rows) - 1, self.CHECKBOX_COLUMN)
         self.dataChanged.emit(top_left, bottom_right, [Qt.CheckStateRole])
+
+
+def install_row_checkboxes(view, proxy, checkbox_column):
+    """Toggles a row's checkbox on any click within the checkbox column.
+
+    Handled explicitly (rather than relying on Qt.ItemIsUserCheckable and the
+    platform style's native, often tiny, checkbox-indicator hit rect) so a
+    click anywhere in the cell toggles it.
+    """
+
+    def _on_clicked(index):
+        if index.column() != checkbox_column:
+            return
+        current = index.data(Qt.CheckStateRole)
+        new_state = Qt.Unchecked if current == Qt.Checked else Qt.Checked
+        proxy.setData(index, new_state, Qt.CheckStateRole)
+
+    view.clicked.connect(_on_clicked)
 
 
 def install_column_sorting(view, proxy, sortable_columns, checkbox_column=None, on_toggle_all=None):

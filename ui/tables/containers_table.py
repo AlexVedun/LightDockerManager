@@ -17,7 +17,7 @@ from docker_services.common import reload_and_get_attrs
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
-from ui.tables.base import DictRowsTableModel, install_column_sorting
+from ui.tables.base import DictRowsTableModel, install_column_sorting, install_row_checkboxes
 from workers.task_worker import run_bulk_task, run_task
 
 BULLET_COLUMN = 0
@@ -62,6 +62,7 @@ class ContainersTab(QWidget):
         self.view.horizontalHeader().setStretchLastSection(True)
         self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
+        install_row_checkboxes(self.view, self.proxy, self.model.CHECKBOX_COLUMN)
         install_column_sorting(
             self.view,
             self.proxy,

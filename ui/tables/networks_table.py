@@ -18,7 +18,7 @@ from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
-from ui.tables.base import DictRowsTableModel, install_column_sorting
+from ui.tables.base import DictRowsTableModel, install_column_sorting, install_row_checkboxes
 from workers.task_worker import run_bulk_task, run_task
 
 NAME_COLUMN = 0
@@ -73,6 +73,7 @@ class NetworksTab(QWidget):
         self.view.horizontalHeader().setStretchLastSection(True)
         self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
+        install_row_checkboxes(self.view, self.proxy, self.model.CHECKBOX_COLUMN)
         install_column_sorting(
             self.view,
             self.proxy,
