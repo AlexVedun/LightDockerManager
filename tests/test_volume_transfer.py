@@ -83,4 +83,4 @@ def test_transfer_volume_reports_progress():
     messages = []
     volume_transfer.transfer_volume(source_client, "src-vol", dest_client, "dst-vol", log=messages.append)
 
-    assert any("завершён успешно" in m for m in messages)
+    assert any("completed successfully" in m for m in messages)

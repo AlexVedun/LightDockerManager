@@ -12,7 +12,7 @@ class LogsViewerDialog(QDialog):
         self.container = container
         self._last_timestamp = None
 
-        self.setWindowTitle(f"Логи: {container_name}")
+        self.setWindowTitle(self.tr("Logs: {name}").format(name=container_name))
         self.resize(800, 500)
 
         self.text_edit = QPlainTextEdit(self)
@@ -32,7 +32,7 @@ class LogsViewerDialog(QDialog):
         try:
             raw = self.container.logs(tail=INITIAL_TAIL_LINES, timestamps=True)
         except docker.errors.APIError as exc:
-            self.text_edit.setPlainText(f"[Ошибка получения логов: {exc}]")
+            self.text_edit.setPlainText(self.tr("[Error fetching logs: {error}]").format(error=exc))
             return
         text = raw.decode("utf-8", errors="replace")
         self.text_edit.setPlainText(text)

@@ -17,14 +17,6 @@ from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
 from ui.volume_transfer_window import VolumeTransferWindow
 
-COLUMNS = ["Имя", "Driver", "Точка монтирования", "Используется", "Размер"]
-ACCESSORS = [
-    lambda r: r["name"],
-    lambda r: r["driver"],
-    lambda r: r["mountpoint"],
-    lambda r: "да" if r["used"] else "нет",
-    lambda r: human_size(r["size"]),
-]
 USED_COLUMN = 3
 USED_COLOR = QColor("#2ecc71")
 UNUSED_COLOR = QColor("#95a5a6")
@@ -38,7 +30,22 @@ class VolumesTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
-        self.model = DictRowsTableModel(COLUMNS, ACCESSORS, color_column=USED_COLUMN, color_getter=_used_color)
+
+        columns = [
+            self.tr("Name"),
+            self.tr("Driver"),
+            self.tr("Mountpoint"),
+            self.tr("Used"),
+            self.tr("Size"),
+        ]
+        accessors = [
+            lambda r: r["name"],
+            lambda r: r["driver"],
+            lambda r: r["mountpoint"],
+            lambda r: self.tr("Yes") if r["used"] else self.tr("No"),
+            lambda r: human_size(r["size"]),
+        ]
+        self.model = DictRowsTableModel(columns, accessors, color_column=USED_COLUMN, color_getter=_used_color)
 
         self.view = QTableView(self)
         self.view.setModel(self.model)
@@ -47,11 +54,11 @@ class VolumesTab(QWidget):
         self.view.horizontalHeader().setStretchLastSection(True)
         self.view.verticalHeader().setVisible(False)
 
-        self.btn_refresh = QPushButton("Обновить")
-        self.btn_remove = QPushButton("Remove")
-        self.btn_inspect = QPushButton("Inspect")
-        self.btn_prune = QPushButton("Prune")
-        self.btn_transfer = QPushButton("Перенести на другой хост")
+        self.btn_refresh = QPushButton(self.tr("Refresh"))
+        self.btn_remove = QPushButton(self.tr("Remove"))
+        self.btn_inspect = QPushButton(self.tr("Inspect"))
+        self.btn_prune = QPushButton(self.tr("Prune"))
+        self.btn_transfer = QPushButton(self.tr("Transfer to another host"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_remove.clicked.connect(self._remove_selected)
@@ -78,7 +85,7 @@ class VolumesTab(QWidget):
         try:
             rows = volumes_service.list_volumes(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
         self.model.set_rows(rows)
 
@@ -92,12 +99,12 @@ class VolumesTab(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        if not confirm(self, "Удалить volume", f"Удалить volume \"{row['name']}\"?"):
+        if not confirm(self, self.tr("Remove Volume"), self.tr('Remove volume "{name}"?').format(name=row["name"])):
             return
         try:
             volumes_service.remove(row["volume"], force=True)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _show_inspect(self):
@@ -108,22 +115,22 @@ class VolumesTab(QWidget):
         try:
             volume.reload()
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        InspectDialog(f"Inspect: {row['name']}", volume.attrs, self).exec()
+        InspectDialog(self.tr("Inspect: {name}").format(name=row["name"]), volume.attrs, self).exec()
 
     def _prune(self):
         client = self.connection_manager.client
         if client is None:
             return
-        if not confirm(self, "Prune volumes", "Удалить все неиспользуемые volumes?"):
+        if not confirm(self, self.tr("Prune Volumes"), self.tr("Remove all unused volumes?")):
             return
         try:
             result = volumes_service.prune(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        QMessageBox.information(self, "Prune завершён", summarize_prune_result(result))
+        QMessageBox.information(self, self.tr("Prune Complete"), summarize_prune_result(result))
         self.refresh()
 
     def _open_transfer_window(self):

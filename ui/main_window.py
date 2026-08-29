@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app_settings import load_settings, save_settings
 from connection.profiles import load_profiles
 from docker_services.events_listener import DockerEventsListener
 from ui.dialogs.connection_dialog import ManageConnectionsDialog
@@ -22,6 +23,7 @@ from ui.volume_transfer_window import VolumeTransferWindow
 FULL_REFRESH_INTERVAL_MS = 10000
 EVENTS_RETRY_DELAY_MS = 3000
 LOCAL_ITEM_DATA = {"type": "local"}
+LANGUAGES = (("en", "English"), ("ru", "Русский"), ("uk", "Українська"))
 
 
 class MainWindow(QMainWindow):
@@ -42,7 +44,7 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel(self)
 
         top_bar = QHBoxLayout()
-        top_bar.addWidget(QLabel("Подключение:"))
+        top_bar.addWidget(QLabel(self.tr("Connection:")))
         top_bar.addWidget(self.connection_combo)
         top_bar.addStretch()
         top_bar.addWidget(self.status_label)
@@ -59,10 +61,10 @@ class MainWindow(QMainWindow):
         }
 
         tabs = QTabWidget(self)
-        tabs.addTab(self.containers_tab, "Контейнеры")
-        tabs.addTab(self.images_tab, "Образы")
-        tabs.addTab(self.volumes_tab, "Volumes")
-        tabs.addTab(self.networks_tab, "Сети")
+        tabs.addTab(self.containers_tab, self.tr("Containers"))
+        tabs.addTab(self.images_tab, self.tr("Images"))
+        tabs.addTab(self.volumes_tab, self.tr("Volumes"))
+        tabs.addTab(self.networks_tab, self.tr("Networks"))
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
@@ -78,13 +80,31 @@ class MainWindow(QMainWindow):
         self._start_events_listener()
 
     def _build_menu(self):
-        settings_menu = self.menuBar().addMenu("Настройки")
-        manage_action = settings_menu.addAction("Подключения...")
+        settings_menu = self.menuBar().addMenu(self.tr("Settings"))
+        manage_action = settings_menu.addAction(self.tr("Connections..."))
         manage_action.triggered.connect(self._open_manage_connections)
 
-        tools_menu = self.menuBar().addMenu("Инструменты")
-        transfer_action = tools_menu.addAction("Перенос Volume...")
+        language_menu = settings_menu.addMenu(self.tr("Language"))
+        current_language = load_settings().get("language", "auto")
+        for code, label in LANGUAGES:
+            action = language_menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(code == current_language)
+            action.triggered.connect(lambda checked, c=code: self._set_language(c))
+
+        tools_menu = self.menuBar().addMenu(self.tr("Tools"))
+        transfer_action = tools_menu.addAction(self.tr("Volume Transfer..."))
         transfer_action.triggered.connect(self._open_volume_transfer)
+
+    def _set_language(self, code):
+        settings = load_settings()
+        settings["language"] = code
+        save_settings(settings)
+        QMessageBox.information(
+            self,
+            self.tr("Language"),
+            self.tr("Restart LightDockerManager for the language change to take effect."),
+        )
 
     def _open_volume_transfer(self):
         window = VolumeTransferWindow(self)
@@ -96,7 +116,7 @@ class MainWindow(QMainWindow):
     def _reload_connection_combo(self):
         self.connection_combo.blockSignals(True)
         self.connection_combo.clear()
-        self.connection_combo.addItem("Локально", LOCAL_ITEM_DATA)
+        self.connection_combo.addItem(self.tr("Local"), LOCAL_ITEM_DATA)
 
         select_index = 0
         profiles = load_profiles()
@@ -121,14 +141,18 @@ class MainWindow(QMainWindow):
         try:
             self.connection_manager.connect_local()
         except Exception as exc:
-            QMessageBox.critical(self, "Ошибка подключения", str(exc))
+            QMessageBox.critical(self, self.tr("Connection Error"), str(exc))
         self._after_connection_changed()
 
     def _switch_to_remote(self, profile):
         try:
             self.connection_manager.connect_remote(profile)
         except Exception as exc:
-            QMessageBox.critical(self, "Ошибка подключения", f"Не удалось подключиться к \"{profile['name']}\":\n{exc}")
+            QMessageBox.critical(
+                self,
+                self.tr("Connection Error"),
+                self.tr('Could not connect to "{name}":\n{error}').format(name=profile["name"], error=exc),
+            )
         self._after_connection_changed()
 
     def _after_connection_changed(self):
@@ -162,7 +186,9 @@ class MainWindow(QMainWindow):
             tab.refresh()
 
     def _on_events_connection_lost(self, message):
-        self.statusBar().showMessage(f"Соединение с Docker events потеряно ({message}), переподключение...")
+        self.statusBar().showMessage(
+            self.tr("Docker events connection lost ({message}), reconnecting...").format(message=message)
+        )
         QTimer.singleShot(EVENTS_RETRY_DELAY_MS, self._restart_events_listener)
 
     def _restart_events_listener(self):
@@ -175,9 +201,9 @@ class MainWindow(QMainWindow):
 
     def _update_status(self):
         if self.connection_manager.is_connected():
-            self.status_label.setText(f"Подключено: {self.connection_manager.mode}")
+            self.status_label.setText(self.tr("Connected: {mode}").format(mode=self.connection_manager.mode))
         else:
-            self.status_label.setText("Нет подключения")
+            self.status_label.setText(self.tr("Not connected"))
         self.statusBar().clearMessage()
 
     def closeEvent(self, event):

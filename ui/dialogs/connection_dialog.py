@@ -18,7 +18,7 @@ from connection.profiles import load_profiles, save_profiles
 class ProfileEditDialog(QDialog):
     def __init__(self, profile=None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Подключение по SSH")
+        self.setWindowTitle(self.tr("SSH Connection"))
 
         self.name_edit = QLineEdit(profile["name"] if profile else "")
         self.host_edit = QLineEdit(profile["host"] if profile else "")
@@ -28,10 +28,10 @@ class ProfileEditDialog(QDialog):
         self.port_spin.setValue(profile.get("port", 22) if profile else 22)
 
         form = QFormLayout()
-        form.addRow("Название:", self.name_edit)
-        form.addRow("Хост:", self.host_edit)
-        form.addRow("Пользователь:", self.user_edit)
-        form.addRow("Порт:", self.port_spin)
+        form.addRow(self.tr("Name:"), self.name_edit)
+        form.addRow(self.tr("Host:"), self.host_edit)
+        form.addRow(self.tr("User:"), self.user_edit)
+        form.addRow(self.tr("Port:"), self.port_spin)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self._on_accept)
@@ -43,7 +43,7 @@ class ProfileEditDialog(QDialog):
 
     def _on_accept(self):
         if not self.name_edit.text().strip() or not self.host_edit.text().strip() or not self.user_edit.text().strip():
-            QMessageBox.warning(self, "Проверка данных", "Заполните название, хост и пользователя.")
+            QMessageBox.warning(self, self.tr("Validation"), self.tr("Please fill in name, host and user."))
             return
         self.accept()
 
@@ -59,16 +59,16 @@ class ProfileEditDialog(QDialog):
 class ManageConnectionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Управление подключениями")
+        self.setWindowTitle(self.tr("Manage Connections"))
         self.resize(400, 300)
         self.profiles = load_profiles()
 
         self.list_widget = QListWidget(self)
         self._reload_list()
 
-        self.btn_add = QPushButton("Добавить")
-        self.btn_edit = QPushButton("Изменить")
-        self.btn_remove = QPushButton("Удалить")
+        self.btn_add = QPushButton(self.tr("Add"))
+        self.btn_edit = QPushButton(self.tr("Edit"))
+        self.btn_remove = QPushButton(self.tr("Remove"))
 
         self.btn_add.clicked.connect(self._add_profile)
         self.btn_edit.clicked.connect(self._edit_profile)
@@ -118,7 +118,7 @@ class ManageConnectionsDialog(QDialog):
             return
         profile = self.profiles[row]
         answer = QMessageBox.question(
-            self, "Удалить подключение", f"Удалить подключение \"{profile['name']}\"?"
+            self, self.tr("Remove Connection"), self.tr('Remove connection "{name}"?').format(name=profile["name"])
         )
         if answer != QMessageBox.Yes:
             return

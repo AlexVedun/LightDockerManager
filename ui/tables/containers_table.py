@@ -16,8 +16,6 @@ from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
 
-COLUMNS = ["", "Name", "Image", "Status", "Ports"]
-
 STATUS_COLORS = {
     "running": QColor("#2ecc71"),
     "paused": QColor("#f1c40f"),
@@ -28,6 +26,7 @@ DEFAULT_STATUS_COLOR = QColor("#95a5a6")
 class ContainersTableModel(QAbstractTableModel):
     def __init__(self):
         super().__init__()
+        self._columns = [self.tr(""), self.tr("Name"), self.tr("Image"), self.tr("Status"), self.tr("Ports")]
         self._rows = []
 
     def set_rows(self, rows):
@@ -42,11 +41,11 @@ class ContainersTableModel(QAbstractTableModel):
         return len(self._rows)
 
     def columnCount(self, parent=QModelIndex()):
-        return len(COLUMNS)
+        return len(self._columns)
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return COLUMNS[section]
+            return self._columns[section]
         return None
 
     def data(self, index, role=Qt.DisplayRole):
@@ -83,15 +82,15 @@ class ContainersTab(QWidget):
         self.view.horizontalHeader().setStretchLastSection(True)
         self.view.verticalHeader().setVisible(False)
 
-        self.btn_refresh = QPushButton("Обновить")
-        self.btn_start = QPushButton("Start")
-        self.btn_stop = QPushButton("Stop")
-        self.btn_restart = QPushButton("Restart")
-        self.btn_pause = QPushButton("Pause")
-        self.btn_unpause = QPushButton("Unpause")
-        self.btn_remove = QPushButton("Remove")
-        self.btn_logs = QPushButton("Logs")
-        self.btn_inspect = QPushButton("Inspect")
+        self.btn_refresh = QPushButton(self.tr("Refresh"))
+        self.btn_start = QPushButton(self.tr("Start"))
+        self.btn_stop = QPushButton(self.tr("Stop"))
+        self.btn_restart = QPushButton(self.tr("Restart"))
+        self.btn_pause = QPushButton(self.tr("Pause"))
+        self.btn_unpause = QPushButton(self.tr("Unpause"))
+        self.btn_remove = QPushButton(self.tr("Remove"))
+        self.btn_logs = QPushButton(self.tr("Logs"))
+        self.btn_inspect = QPushButton(self.tr("Inspect"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_start.clicked.connect(lambda: self._run_action(containers_service.start))
@@ -132,7 +131,7 @@ class ContainersTab(QWidget):
         try:
             rows = containers_service.list_containers(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
         self.model.set_rows(rows)
 
@@ -149,19 +148,19 @@ class ContainersTab(QWidget):
         try:
             action(row["container"])
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _remove_selected(self):
         row = self._selected_row()
         if row is None:
             return
-        if not confirm(self, "Удалить контейнер", f"Удалить контейнер \"{row['name']}\"?"):
+        if not confirm(self, self.tr("Remove Container"), self.tr('Remove container "{name}"?').format(name=row["name"])):
             return
         try:
             containers_service.remove(row["container"], force=True)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _show_logs(self):
@@ -179,7 +178,7 @@ class ContainersTab(QWidget):
         try:
             container.reload()
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        dialog = InspectDialog(f"Inspect: {row['name']}", container.attrs, self)
+        dialog = InspectDialog(self.tr("Inspect: {name}").format(name=row["name"]), container.attrs, self)
         dialog.exec()

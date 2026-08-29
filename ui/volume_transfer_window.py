@@ -18,9 +18,6 @@ from connection.profiles import load_profiles
 from docker_services.volume_transfer import transfer_volume
 from ui.dialogs.confirm_dialog import confirm
 
-LOCAL_LABEL = "Локально"
-
-
 class TransferWorker(QThread):
     log_message = Signal(str)
     finished_ok = Signal()
@@ -54,7 +51,7 @@ class HostPicker(QGroupBox):
     def __init__(self, title, parent=None):
         super().__init__(title, parent)
         self.combo = QComboBox(self)
-        self.combo.addItem(LOCAL_LABEL, {"type": "local"})
+        self.combo.addItem(self.tr("Local"), {"type": "local"})
         for profile in load_profiles():
             self.combo.addItem(profile["name"], {"type": "remote", "profile": profile})
         self.combo.currentIndexChanged.connect(self._reload_volumes)
@@ -84,7 +81,7 @@ class HostPicker(QGroupBox):
                 client = docker.DockerClient(base_url=base_url, use_ssh_client=True)
             client.ping()
         except Exception as exc:
-            QMessageBox.critical(self, "Ошибка подключения", str(exc))
+            QMessageBox.critical(self, self.tr("Connection Error"), str(exc))
             return None
         self._client_cache[key] = client
         return client
@@ -98,7 +95,7 @@ class HostPicker(QGroupBox):
             for volume in client.volumes.list():
                 self.volume_combo.addItem(volume.name)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
 
     def selected_client(self):
         return self._get_client()
@@ -113,21 +110,21 @@ class HostPicker(QGroupBox):
 class VolumeTransferWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Перенос Volume")
+        self.setWindowTitle(self.tr("Volume Transfer"))
         self.resize(600, 500)
         self.worker = None
 
-        self.source_picker = HostPicker("Источник")
-        self.dest_picker = HostPicker("Назначение")
+        self.source_picker = HostPicker(self.tr("Source"))
+        self.dest_picker = HostPicker(self.tr("Destination"))
 
         pickers_row = QHBoxLayout()
         pickers_row.addWidget(self.source_picker)
         pickers_row.addWidget(self.dest_picker)
 
         self.dest_name_edit = QLineEdit(self)
-        self.dest_name_edit.setPlaceholderText("Имя volume на назначении (по умолчанию — как у источника)")
+        self.dest_name_edit.setPlaceholderText(self.tr("Volume name on destination (defaults to source name)"))
 
-        self.btn_transfer = QPushButton("Перенести")
+        self.btn_transfer = QPushButton(self.tr("Transfer"))
         self.btn_transfer.clicked.connect(self._start_transfer)
 
         self.log_view = QPlainTextEdit(self)
@@ -135,7 +132,7 @@ class VolumeTransferWindow(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addLayout(pickers_row)
-        layout.addWidget(QLabel("Имя volume на назначении:"))
+        layout.addWidget(QLabel(self.tr("Volume name on destination:")))
         layout.addWidget(self.dest_name_edit)
         layout.addWidget(self.btn_transfer)
         layout.addWidget(self.log_view)
@@ -149,18 +146,25 @@ class VolumeTransferWindow(QDialog):
         if source_client is None or dest_client is None:
             return
         if not source_volume:
-            QMessageBox.warning(self, "Перенос volume", "Выберите volume-источник.")
+            QMessageBox.warning(self, self.tr("Volume Transfer"), self.tr("Please select a source volume."))
             return
         if source_client is dest_client and source_volume == dest_volume:
-            QMessageBox.warning(self, "Перенос volume", "Источник и назначение совпадают.")
+            QMessageBox.warning(self, self.tr("Volume Transfer"), self.tr("Source and destination are the same."))
             return
 
         if not confirm(
             self,
-            "Перенос volume",
-            f"Перенести volume \"{source_volume}\" ({self.source_picker.selected_host_label()}) "
-            f"в volume \"{dest_volume}\" ({self.dest_picker.selected_host_label()})?\n\n"
-            "Если volume с таким именем уже существует на назначении, его содержимое будет дополнено/перезаписано.",
+            self.tr("Volume Transfer"),
+            self.tr(
+                'Transfer volume "{source_volume}" ({source_host}) '
+                'to volume "{dest_volume}" ({dest_host})?\n\n'
+                "If a volume with this name already exists on the destination, its contents may be overwritten."
+            ).format(
+                source_volume=source_volume,
+                source_host=self.source_picker.selected_host_label(),
+                dest_volume=dest_volume,
+                dest_host=self.dest_picker.selected_host_label(),
+            ),
         ):
             return
 
@@ -175,12 +179,12 @@ class VolumeTransferWindow(QDialog):
 
     def _on_finished_ok(self):
         self.btn_transfer.setEnabled(True)
-        QMessageBox.information(self, "Перенос volume", "Перенос завершён успешно.")
+        QMessageBox.information(self, self.tr("Volume Transfer"), self.tr("Transfer completed successfully."))
 
     def _on_failed(self, message):
         self.btn_transfer.setEnabled(True)
-        self.log_view.appendPlainText(f"[Ошибка] {message}")
-        QMessageBox.critical(self, "Ошибка переноса", message)
+        self.log_view.appendPlainText(self.tr("[Error] {message}").format(message=message))
+        QMessageBox.critical(self, self.tr("Transfer Error"), message)
 
     def closeEvent(self, event):
         if self.worker is not None and self.worker.isRunning():

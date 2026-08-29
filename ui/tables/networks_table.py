@@ -17,14 +17,6 @@ from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
 
-COLUMNS = ["Имя", "Driver", "Scope", "Подключённые контейнеры", "Используется"]
-ACCESSORS = [
-    lambda r: r["name"],
-    lambda r: r["driver"],
-    lambda r: r["scope"],
-    lambda r: r["containers"],
-    lambda r: "да" if r["used"] else "нет",
-]
 USED_COLUMN = 4
 USED_COLOR = QColor("#2ecc71")
 UNUSED_COLOR = QColor("#95a5a6")
@@ -38,7 +30,22 @@ class NetworksTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
-        self.model = DictRowsTableModel(COLUMNS, ACCESSORS, color_column=USED_COLUMN, color_getter=_used_color)
+
+        columns = [
+            self.tr("Name"),
+            self.tr("Driver"),
+            self.tr("Scope"),
+            self.tr("Connected Containers"),
+            self.tr("Used"),
+        ]
+        accessors = [
+            lambda r: r["name"],
+            lambda r: r["driver"],
+            lambda r: r["scope"],
+            lambda r: r["containers"],
+            lambda r: self.tr("Yes") if r["used"] else self.tr("No"),
+        ]
+        self.model = DictRowsTableModel(columns, accessors, color_column=USED_COLUMN, color_getter=_used_color)
 
         self.view = QTableView(self)
         self.view.setModel(self.model)
@@ -47,12 +54,12 @@ class NetworksTab(QWidget):
         self.view.horizontalHeader().setStretchLastSection(True)
         self.view.verticalHeader().setVisible(False)
 
-        self.btn_refresh = QPushButton("Обновить")
-        self.btn_remove = QPushButton("Remove")
-        self.btn_inspect = QPushButton("Inspect")
-        self.btn_connect = QPushButton("Подключить контейнер")
-        self.btn_disconnect = QPushButton("Отключить контейнер")
-        self.btn_prune = QPushButton("Prune")
+        self.btn_refresh = QPushButton(self.tr("Refresh"))
+        self.btn_remove = QPushButton(self.tr("Remove"))
+        self.btn_inspect = QPushButton(self.tr("Inspect"))
+        self.btn_connect = QPushButton(self.tr("Connect Container"))
+        self.btn_disconnect = QPushButton(self.tr("Disconnect Container"))
+        self.btn_prune = QPushButton(self.tr("Prune"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_remove.clicked.connect(self._remove_selected)
@@ -87,7 +94,7 @@ class NetworksTab(QWidget):
         try:
             rows = networks_service.list_networks(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
         self.model.set_rows(rows)
 
@@ -101,12 +108,12 @@ class NetworksTab(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        if not confirm(self, "Удалить сеть", f"Удалить сеть \"{row['name']}\"?"):
+        if not confirm(self, self.tr("Remove Network"), self.tr('Remove network "{name}"?').format(name=row["name"])):
             return
         try:
             networks_service.remove(row["network"])
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _show_inspect(self):
@@ -117,9 +124,9 @@ class NetworksTab(QWidget):
         try:
             network.reload()
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        InspectDialog(f"Inspect: {row['name']}", network.attrs, self).exec()
+        InspectDialog(self.tr("Inspect: {name}").format(name=row["name"]), network.attrs, self).exec()
 
     def _pick_container(self, title):
         client = self.connection_manager.client
@@ -127,10 +134,10 @@ class NetworksTab(QWidget):
             return None
         containers = client.containers.list(all=True)
         if not containers:
-            QMessageBox.information(self, title, "Нет доступных контейнеров.")
+            QMessageBox.information(self, title, self.tr("No containers available."))
             return None
         names = [c.name for c in containers]
-        name, ok = QInputDialog.getItem(self, title, "Контейнер:", names, editable=False)
+        name, ok = QInputDialog.getItem(self, title, self.tr("Container:"), names, editable=False)
         if not ok:
             return None
         return next(c for c in containers if c.name == name)
@@ -139,38 +146,38 @@ class NetworksTab(QWidget):
         row = self._selected_row()
         if row is None:
             return
-        container = self._pick_container("Подключить контейнер к сети")
+        container = self._pick_container(self.tr("Connect Container to Network"))
         if container is None:
             return
         try:
             networks_service.connect(row["network"], container)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _disconnect_container(self):
         row = self._selected_row()
         if row is None:
             return
-        container = self._pick_container("Отключить контейнер от сети")
+        container = self._pick_container(self.tr("Disconnect Container from Network"))
         if container is None:
             return
         try:
             networks_service.disconnect(row["network"], container)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _prune(self):
         client = self.connection_manager.client
         if client is None:
             return
-        if not confirm(self, "Prune сетей", "Удалить все неиспользуемые сети?"):
+        if not confirm(self, self.tr("Prune Networks"), self.tr("Remove all unused networks?")):
             return
         try:
             result = networks_service.prune(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        QMessageBox.information(self, "Prune завершён", summarize_prune_result(result))
+        QMessageBox.information(self, self.tr("Prune Complete"), summarize_prune_result(result))
         self.refresh()

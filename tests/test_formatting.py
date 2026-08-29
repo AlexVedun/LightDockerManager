@@ -30,4 +30,4 @@ def test_summarize_prune_result_with_space_and_deleted():
 
 
 def test_summarize_prune_result_empty():
-    assert summarize_prune_result({"NetworksDeleted": None}) == "Нечего удалять."
+    assert summarize_prune_result({"NetworksDeleted": None}) == "Nothing to prune."

@@ -1,3 +1,6 @@
+from PySide6.QtCore import QCoreApplication
+
+
 def human_size(num_bytes):
     if num_bytes is None:
         return "—"
@@ -18,12 +21,16 @@ def summarize_prune_result(result):
     parts = []
     space = result.get("SpaceReclaimed")
     if space is not None:
-        parts.append(f"Освобождено места: {human_size(space)}")
+        parts.append(
+            QCoreApplication.translate("Formatting", "Space reclaimed: {size}").format(size=human_size(space))
+        )
 
     deleted_key = next((key for key in result if key.endswith("Deleted")), None)
     if deleted_key:
         deleted = result.get(deleted_key) or []
         if deleted:
-            parts.append(f"Удалено объектов: {len(deleted)}")
+            parts.append(
+                QCoreApplication.translate("Formatting", "Objects deleted: {count}").format(count=len(deleted))
+            )
 
-    return "\n".join(parts) if parts else "Нечего удалять."
+    return "\n".join(parts) if parts else QCoreApplication.translate("Formatting", "Nothing to prune.")

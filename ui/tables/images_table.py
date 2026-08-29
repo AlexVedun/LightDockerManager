@@ -17,14 +17,6 @@ from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.tables.base import DictRowsTableModel
 
-COLUMNS = ["Repository:Tag", "Image ID", "Размер", "Используется", "Создан"]
-ACCESSORS = [
-    lambda r: r["tags"],
-    lambda r: r["id"],
-    lambda r: human_size(r["size"]),
-    lambda r: "да" if r["used"] else "нет",
-    lambda r: short_timestamp(r["created"]),
-]
 USED_COLUMN = 3
 USED_COLOR = QColor("#2ecc71")
 UNUSED_COLOR = QColor("#95a5a6")
@@ -38,7 +30,22 @@ class ImagesTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
-        self.model = DictRowsTableModel(COLUMNS, ACCESSORS, color_column=USED_COLUMN, color_getter=_used_color)
+
+        columns = [
+            self.tr("Repository:Tag"),
+            self.tr("Image ID"),
+            self.tr("Size"),
+            self.tr("Used"),
+            self.tr("Created"),
+        ]
+        accessors = [
+            lambda r: r["tags"],
+            lambda r: r["id"],
+            lambda r: human_size(r["size"]),
+            lambda r: self.tr("Yes") if r["used"] else self.tr("No"),
+            lambda r: short_timestamp(r["created"]),
+        ]
+        self.model = DictRowsTableModel(columns, accessors, color_column=USED_COLUMN, color_getter=_used_color)
 
         self.view = QTableView(self)
         self.view.setModel(self.model)
@@ -47,11 +54,11 @@ class ImagesTab(QWidget):
         self.view.horizontalHeader().setStretchLastSection(True)
         self.view.verticalHeader().setVisible(False)
 
-        self.btn_refresh = QPushButton("Обновить")
-        self.btn_pull = QPushButton("Pull")
-        self.btn_remove = QPushButton("Remove")
-        self.btn_inspect = QPushButton("Inspect")
-        self.btn_prune = QPushButton("Prune")
+        self.btn_refresh = QPushButton(self.tr("Refresh"))
+        self.btn_pull = QPushButton(self.tr("Pull"))
+        self.btn_remove = QPushButton(self.tr("Remove"))
+        self.btn_inspect = QPushButton(self.tr("Inspect"))
+        self.btn_prune = QPushButton(self.tr("Prune"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_pull.clicked.connect(self._pull_image)
@@ -78,7 +85,7 @@ class ImagesTab(QWidget):
         try:
             rows = images_service.list_images(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
         self.model.set_rows(rows)
 
@@ -92,25 +99,25 @@ class ImagesTab(QWidget):
         client = self.connection_manager.client
         if client is None:
             return
-        repo_tag, ok = QInputDialog.getText(self, "Pull образа", "Имя образа (например nginx:latest):")
+        repo_tag, ok = QInputDialog.getText(self, self.tr("Pull Image"), self.tr("Image name (e.g. nginx:latest):"))
         if not ok or not repo_tag.strip():
             return
         try:
             images_service.pull(client, repo_tag.strip())
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _remove_selected(self):
         row = self._selected_row()
         if row is None:
             return
-        if not confirm(self, "Удалить образ", f"Удалить образ \"{row['tags']}\"?"):
+        if not confirm(self, self.tr("Remove Image"), self.tr('Remove image "{tags}"?').format(tags=row["tags"])):
             return
         try:
             images_service.remove(row["image"], force=True)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
         self.refresh()
 
     def _show_inspect(self):
@@ -121,20 +128,20 @@ class ImagesTab(QWidget):
         try:
             image.reload()
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        InspectDialog(f"Inspect: {row['tags']}", image.attrs, self).exec()
+        InspectDialog(self.tr("Inspect: {tags}").format(tags=row["tags"]), image.attrs, self).exec()
 
     def _prune(self):
         client = self.connection_manager.client
         if client is None:
             return
-        if not confirm(self, "Prune образов", "Удалить все неиспользуемые образы?"):
+        if not confirm(self, self.tr("Prune Images"), self.tr("Remove all unused images?")):
             return
         try:
             result = images_service.prune(client)
         except docker.errors.APIError as exc:
-            QMessageBox.critical(self, "Ошибка Docker", str(exc))
+            QMessageBox.critical(self, self.tr("Docker Error"), str(exc))
             return
-        QMessageBox.information(self, "Prune завершён", summarize_prune_result(result))
+        QMessageBox.information(self, self.tr("Prune Complete"), summarize_prune_result(result))
         self.refresh()
