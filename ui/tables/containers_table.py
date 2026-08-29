@@ -1,4 +1,6 @@
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+import functools
+
+from PySide6.QtCore import QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -15,8 +17,12 @@ from docker_services.common import reload_and_get_attrs
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
-from workers.task_worker import run_task
+from ui.tables.base import DictRowsTableModel, install_column_sorting
+from workers.task_worker import run_bulk_task, run_task
 
+BULLET_COLUMN = 0
+NAME_COLUMN = 1
+STATUS_COLUMN = 3
 STATUS_COLORS = {
     "running": QColor("#2ecc71"),
     "paused": QColor("#f1c40f"),
@@ -24,65 +30,45 @@ STATUS_COLORS = {
 DEFAULT_STATUS_COLOR = QColor("#95a5a6")
 
 
-class ContainersTableModel(QAbstractTableModel):
-    def __init__(self):
-        super().__init__()
-        self._columns = [self.tr(""), self.tr("Name"), self.tr("Image"), self.tr("Status"), self.tr("Ports")]
-        self._rows = []
-
-    def set_rows(self, rows):
-        self.beginResetModel()
-        self._rows = rows
-        self.endResetModel()
-
-    def row_at(self, row_index):
-        return self._rows[row_index]
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self._rows)
-
-    def columnCount(self, parent=QModelIndex()):
-        return len(self._columns)
-
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
-            return self._columns[section]
-        return None
-
-    def data(self, index, role=Qt.DisplayRole):
-        if not index.isValid():
-            return None
-        row = self._rows[index.row()]
-        col = index.column()
-
-        if role == Qt.DisplayRole:
-            return {
-                0: "●",
-                1: row["name"],
-                2: row["image"],
-                3: row["status"],
-                4: row["ports"],
-            }.get(col)
-
-        if role == Qt.ForegroundRole and col == 0:
-            return STATUS_COLORS.get(row["status"], DEFAULT_STATUS_COLOR)
-
-        return None
-
-
 class ContainersTab(QWidget):
     def __init__(self, connection_manager, parent=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
-        self.model = ContainersTableModel()
         self._refreshing = False
 
+        columns = [self.tr(""), self.tr("Name"), self.tr("Image"), self.tr("Status"), self.tr("Ports")]
+        accessors = [
+            lambda r: "●",
+            lambda r: r["name"],
+            lambda r: r["image"],
+            lambda r: r["status"],
+            lambda r: r["ports"],
+        ]
+        self.model = DictRowsTableModel(
+            columns,
+            accessors,
+            row_key=lambda r: r["container"].id,
+            color_column=BULLET_COLUMN,
+            color_getter=lambda r: STATUS_COLORS.get(r["status"], DEFAULT_STATUS_COLOR),
+        )
+        self.proxy = QSortFilterProxyModel(self)
+        self.proxy.setSourceModel(self.model)
+        self.proxy.setSortRole(Qt.UserRole)
+
         self.view = QTableView(self)
-        self.view.setModel(self.model)
+        self.view.setModel(self.proxy)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.view.horizontalHeader().setStretchLastSection(True)
+        self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
+        install_column_sorting(
+            self.view,
+            self.proxy,
+            sortable_columns={NAME_COLUMN + 1, STATUS_COLUMN + 1},
+            checkbox_column=self.model.CHECKBOX_COLUMN,
+            on_toggle_all=lambda: self.model.set_all_checked(not self.model.has_checked()),
+        )
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_start = QPushButton(self.tr("Start"))
@@ -95,11 +81,11 @@ class ContainersTab(QWidget):
         self.btn_inspect = QPushButton(self.tr("Inspect"))
 
         self.btn_refresh.clicked.connect(self.refresh)
-        self.btn_start.clicked.connect(lambda: self._run_action(containers_service.start))
-        self.btn_stop.clicked.connect(lambda: self._run_action(containers_service.stop))
-        self.btn_restart.clicked.connect(lambda: self._run_action(containers_service.restart))
-        self.btn_pause.clicked.connect(lambda: self._run_action(containers_service.pause))
-        self.btn_unpause.clicked.connect(lambda: self._run_action(containers_service.unpause))
+        self.btn_start.clicked.connect(lambda: self._run_bulk_action(containers_service.start))
+        self.btn_stop.clicked.connect(lambda: self._run_bulk_action(containers_service.stop))
+        self.btn_restart.clicked.connect(lambda: self._run_bulk_action(containers_service.restart))
+        self.btn_pause.clicked.connect(lambda: self._run_bulk_action(containers_service.pause))
+        self.btn_unpause.clicked.connect(lambda: self._run_bulk_action(containers_service.unpause))
         self.btn_remove.clicked.connect(self._remove_selected)
         self.btn_logs.clicked.connect(self._show_logs)
         self.btn_inspect.clicked.connect(self._show_inspect)
@@ -153,38 +139,41 @@ class ContainersTab(QWidget):
         indexes = self.view.selectionModel().selectedRows()
         if not indexes:
             return None
-        return self.model.row_at(indexes[0].row())
+        source_index = self.proxy.mapToSource(indexes[0])
+        return self.model.row_at(source_index.row())
+
+    def _target_rows(self):
+        checked = self.model.checked_rows()
+        if checked:
+            return checked
+        row = self._selected_row()
+        return [row] if row is not None else []
+
+    def _on_bulk_action_finished(self, errors):
+        if errors:
+            QMessageBox.critical(self, self.tr("Docker Error"), "\n".join(errors))
+        self.refresh()
 
     def _on_action_failed(self, message):
         QMessageBox.critical(self, self.tr("Docker Error"), message)
         self.refresh()
 
-    def _run_action(self, action):
-        row = self._selected_row()
-        if row is None:
+    def _run_bulk_action(self, action):
+        rows = self._target_rows()
+        if not rows:
             return
-        run_task(
-            self,
-            action,
-            row["container"],
-            on_success=lambda _: self.refresh(),
-            on_error=self._on_action_failed,
-        )
+        tasks = [functools.partial(action, row["container"]) for row in rows]
+        run_bulk_task(self, tasks, self._on_bulk_action_finished)
 
     def _remove_selected(self):
-        row = self._selected_row()
-        if row is None:
+        rows = self._target_rows()
+        if not rows:
             return
-        if not confirm(self, self.tr("Remove Container"), self.tr('Remove container "{name}"?').format(name=row["name"])):
+        names = ", ".join(row["name"] for row in rows)
+        if not confirm(self, self.tr("Remove Container"), self.tr('Remove container(s) "{names}"?').format(names=names)):
             return
-        run_task(
-            self,
-            containers_service.remove,
-            row["container"],
-            force=True,
-            on_success=lambda _: self.refresh(),
-            on_error=self._on_action_failed,
-        )
+        tasks = [functools.partial(containers_service.remove, row["container"], force=True) for row in rows]
+        run_bulk_task(self, tasks, self._on_bulk_action_finished)
 
     def _show_logs(self):
         row = self._selected_row()

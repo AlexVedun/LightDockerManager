@@ -53,3 +53,27 @@ def run_task(owner, func, *args, on_success=None, on_error=None, **kwargs):
     owner._background_workers.append(worker)
     worker.start()
     return worker
+
+
+def run_bulk_task(owner, tasks, on_finished):
+    """Runs each zero-arg callable in `tasks` sequentially on background threads.
+
+    Calls on_finished(errors) once every task has completed, where `errors`
+    is the list of error messages collected from failed tasks.
+    """
+    errors = []
+    remaining = list(tasks)
+
+    def _run_next():
+        if not remaining:
+            on_finished(errors)
+            return
+        task = remaining.pop(0)
+
+        def _on_error(message):
+            errors.append(message)
+            _run_next()
+
+        run_task(owner, task, on_success=lambda _: _run_next(), on_error=_on_error)
+
+    _run_next()

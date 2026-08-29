@@ -1,3 +1,6 @@
+import functools
+
+from PySide6.QtCore import QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -15,10 +18,13 @@ from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import human_size, short_timestamp, summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
-from ui.tables.base import DictRowsTableModel
-from workers.task_worker import run_task
+from ui.tables.base import DictRowsTableModel, install_column_sorting
+from workers.task_worker import run_bulk_task, run_task
 
+TAGS_COLUMN = 0
+SIZE_COLUMN = 2
 USED_COLUMN = 3
+CREATED_COLUMN = 4
 USED_COLOR = QColor("#2ecc71")
 UNUSED_COLOR = QColor("#95a5a6")
 
@@ -47,14 +53,37 @@ class ImagesTab(QWidget):
             lambda r: self.tr("Yes") if r["used"] else self.tr("No"),
             lambda r: short_timestamp(r["created"]),
         ]
-        self.model = DictRowsTableModel(columns, accessors, color_column=USED_COLUMN, color_getter=_used_color)
+        sort_accessors = {
+            SIZE_COLUMN: lambda r: r["size"] if r["size"] is not None else -1,
+            USED_COLUMN: lambda r: r["used"],
+            CREATED_COLUMN: lambda r: r["created"] or "",
+        }
+        self.model = DictRowsTableModel(
+            columns,
+            accessors,
+            row_key=lambda r: r["image"].id,
+            color_column=USED_COLUMN,
+            color_getter=_used_color,
+            sort_accessors=sort_accessors,
+        )
+        self.proxy = QSortFilterProxyModel(self)
+        self.proxy.setSourceModel(self.model)
+        self.proxy.setSortRole(Qt.UserRole)
 
         self.view = QTableView(self)
-        self.view.setModel(self.model)
+        self.view.setModel(self.proxy)
         self.view.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.view.setSelectionMode(QAbstractItemView.SingleSelection)
         self.view.horizontalHeader().setStretchLastSection(True)
+        self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
+        install_column_sorting(
+            self.view,
+            self.proxy,
+            sortable_columns={TAGS_COLUMN + 1, SIZE_COLUMN + 1, USED_COLUMN + 1, CREATED_COLUMN + 1},
+            checkbox_column=self.model.CHECKBOX_COLUMN,
+            on_toggle_all=lambda: self.model.set_all_checked(not self.model.has_checked()),
+        )
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_pull = QPushButton(self.tr("Pull"))
@@ -107,10 +136,23 @@ class ImagesTab(QWidget):
         indexes = self.view.selectionModel().selectedRows()
         if not indexes:
             return None
-        return self.model.row_at(indexes[0].row())
+        source_index = self.proxy.mapToSource(indexes[0])
+        return self.model.row_at(source_index.row())
+
+    def _target_rows(self):
+        checked = self.model.checked_rows()
+        if checked:
+            return checked
+        row = self._selected_row()
+        return [row] if row is not None else []
 
     def _on_action_failed(self, message):
         QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self.refresh()
+
+    def _on_bulk_action_finished(self, errors):
+        if errors:
+            QMessageBox.critical(self, self.tr("Docker Error"), "\n".join(errors))
         self.refresh()
 
     def _pull_image(self):
@@ -130,19 +172,14 @@ class ImagesTab(QWidget):
         )
 
     def _remove_selected(self):
-        row = self._selected_row()
-        if row is None:
+        rows = self._target_rows()
+        if not rows:
             return
-        if not confirm(self, self.tr("Remove Image"), self.tr('Remove image "{tags}"?').format(tags=row["tags"])):
+        tags = ", ".join(row["tags"] for row in rows)
+        if not confirm(self, self.tr("Remove Image"), self.tr('Remove image(s) "{tags}"?').format(tags=tags)):
             return
-        run_task(
-            self,
-            images_service.remove,
-            row["image"],
-            force=True,
-            on_success=lambda _: self.refresh(),
-            on_error=self._on_action_failed,
-        )
+        tasks = [functools.partial(images_service.remove, row["image"], force=True) for row in rows]
+        run_bulk_task(self, tasks, self._on_bulk_action_finished)
 
     def _show_inspect(self):
         row = self._selected_row()

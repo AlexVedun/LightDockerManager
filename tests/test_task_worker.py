@@ -1,6 +1,8 @@
 from PySide6.QtWidgets import QApplication
 
-from workers.task_worker import TaskWorker, run_task
+import time
+
+from workers.task_worker import TaskWorker, run_bulk_task, run_task
 
 QApplication.instance() or QApplication([])
 
@@ -72,3 +74,41 @@ def test_run_task_reports_error_via_on_error():
     _pump_events(worker)
 
     assert errors == ["bad"]
+
+
+def _pump_until(condition, timeout_s=2.0):
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        QApplication.processEvents()
+        if condition():
+            return
+    raise AssertionError("condition was not met in time")
+
+
+def test_run_bulk_task_runs_every_task_and_reports_no_errors():
+    owner = _Owner()
+    calls = []
+    finished = []
+
+    tasks = [lambda i=i: calls.append(i) for i in range(3)]
+    run_bulk_task(owner, tasks, finished.append)
+
+    _pump_until(lambda: finished)
+
+    assert calls == [0, 1, 2]
+    assert finished == [[]]
+
+
+def test_run_bulk_task_collects_errors_but_keeps_going():
+    owner = _Owner()
+    finished = []
+
+    def boom():
+        raise ValueError("bad")
+
+    tasks = [lambda: 1, boom, lambda: 2]
+    run_bulk_task(owner, tasks, finished.append)
+
+    _pump_until(lambda: finished)
+
+    assert finished == [["bad"]]
