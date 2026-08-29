@@ -1,5 +1,7 @@
 from PySide6.QtWidgets import QLabel, QMainWindow, QTabWidget, QWidget
 
+from ui.tables.containers_table import ContainersTab
+
 
 def _placeholder_tab(text: str) -> QWidget:
     widget = QWidget()
@@ -17,7 +19,7 @@ class MainWindow(QMainWindow):
         self.resize(1000, 600)
 
         tabs = QTabWidget(self)
-        tabs.addTab(_placeholder_tab("Таблица контейнеров — в разработке"), "Контейнеры")
+        tabs.addTab(ContainersTab(connection_manager), "Контейнеры")
         tabs.addTab(_placeholder_tab("Таблица образов — в разработке"), "Образы")
         tabs.addTab(_placeholder_tab("Таблица volumes — в разработке"), "Volumes")
         tabs.addTab(_placeholder_tab("Таблица сетей — в разработке"), "Сети")
