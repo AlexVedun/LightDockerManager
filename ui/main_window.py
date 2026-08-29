@@ -1,13 +1,9 @@
-from PySide6.QtWidgets import QLabel, QMainWindow, QTabWidget, QWidget
+from PySide6.QtWidgets import QMainWindow, QTabWidget
 
 from ui.tables.containers_table import ContainersTab
-
-
-def _placeholder_tab(text: str) -> QWidget:
-    widget = QWidget()
-    label = QLabel(text, widget)
-    label.setStyleSheet("padding: 24px; color: gray;")
-    return widget
+from ui.tables.images_table import ImagesTab
+from ui.tables.networks_table import NetworksTab
+from ui.tables.volumes_table import VolumesTab
 
 
 class MainWindow(QMainWindow):
@@ -20,9 +16,9 @@ class MainWindow(QMainWindow):
 
         tabs = QTabWidget(self)
         tabs.addTab(ContainersTab(connection_manager), "Контейнеры")
-        tabs.addTab(_placeholder_tab("Таблица образов — в разработке"), "Образы")
-        tabs.addTab(_placeholder_tab("Таблица volumes — в разработке"), "Volumes")
-        tabs.addTab(_placeholder_tab("Таблица сетей — в разработке"), "Сети")
+        tabs.addTab(ImagesTab(connection_manager), "Образы")
+        tabs.addTab(VolumesTab(connection_manager), "Volumes")
+        tabs.addTab(NetworksTab(connection_manager), "Сети")
         self.setCentralWidget(tabs)
 
         status = f"Подключено: {connection_manager.mode}" if connection_manager.is_connected() else "Нет подключения"
