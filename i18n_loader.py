@@ -1,10 +1,16 @@
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QLocale, QTranslator
 
 from app_settings import SUPPORTED_LANGUAGES
 
-I18N_DIR = Path(__file__).resolve().parent / "i18n"
+if hasattr(sys, "_MEIPASS"):
+    _BASE_DIR = Path(sys._MEIPASS)
+else:
+    _BASE_DIR = Path(__file__).resolve().parent
+
+I18N_DIR = _BASE_DIR / "i18n"
 
 
 def resolve_language(settings):

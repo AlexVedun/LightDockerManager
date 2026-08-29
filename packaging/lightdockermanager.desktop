@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=LightDockerManager
+Comment=Lightweight desktop manager for Docker containers, images, volumes and networks
+Exec=LightDockerManager
+Icon=lightdockermanager
+Categories=Development;System;
+Terminal=false
