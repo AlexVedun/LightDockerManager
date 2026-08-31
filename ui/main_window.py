@@ -23,6 +23,7 @@ from workers.task_worker import run_task
 
 FULL_REFRESH_INTERVAL_MS = 10000
 EVENTS_RETRY_DELAY_MS = 3000
+TRANSIENT_MESSAGE_MS = 6000
 LOCAL_ITEM_DATA = {"type": "local"}
 LANGUAGES = (("en", "English"), ("ru", "Русский"), ("uk", "Українська"))
 
@@ -50,10 +51,10 @@ class MainWindow(QMainWindow):
         top_bar.addStretch()
         top_bar.addWidget(self.status_label)
 
-        self.containers_tab = ContainersTab(connection_manager)
-        self.images_tab = ImagesTab(connection_manager)
-        self.volumes_tab = VolumesTab(connection_manager)
-        self.networks_tab = NetworksTab(connection_manager)
+        self.containers_tab = ContainersTab(connection_manager, notify=self._show_transient_message)
+        self.images_tab = ImagesTab(connection_manager, notify=self._show_transient_message)
+        self.volumes_tab = VolumesTab(connection_manager, notify=self._show_transient_message)
+        self.networks_tab = NetworksTab(connection_manager, notify=self._show_transient_message)
         self._tabs_by_entity = {
             "containers": self.containers_tab,
             "images": self.images_tab,
@@ -218,6 +219,9 @@ class MainWindow(QMainWindow):
     def _refresh_all(self):
         for tab in self._tabs_by_entity.values():
             tab.refresh()
+
+    def _show_transient_message(self, message):
+        self.statusBar().showMessage(message, TRANSIENT_MESSAGE_MS)
 
     def _update_status(self):
         if self.connection_manager.is_connected():

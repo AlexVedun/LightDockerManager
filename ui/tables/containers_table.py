@@ -31,10 +31,11 @@ DEFAULT_STATUS_COLOR = QColor("#95a5a6")
 
 
 class ContainersTab(QWidget):
-    def __init__(self, connection_manager, parent=None):
+    def __init__(self, connection_manager, parent=None, notify=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self._refreshing = False
+        self._notify = notify or (lambda message: None)
 
         columns = [self.tr(""), self.tr("Name"), self.tr("Image"), self.tr("Status"), self.tr("Ports")]
         accessors = [
@@ -150,14 +151,20 @@ class ContainersTab(QWidget):
         row = self._selected_row()
         return [row] if row is not None else []
 
-    def _on_bulk_action_finished(self, errors):
+    def _on_bulk_action_finished(self, errors, stale):
         self.model.set_all_checked(False)
+        if stale:
+            self._notify(self.tr("%n item(s) no longer exist and were skipped.", None, len(stale)))
         if errors:
             QMessageBox.critical(self, self.tr("Docker Error"), "\n".join(errors))
         self.refresh()
 
     def _on_action_failed(self, message):
         QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self.refresh()
+
+    def _on_item_gone(self, message):
+        self._notify(message)
         self.refresh()
 
     def _run_bulk_action(self, action):
@@ -195,4 +202,5 @@ class ContainersTab(QWidget):
             row["container"],
             on_success=lambda attrs: InspectDialog(self.tr("Inspect: {name}").format(name=name), attrs, self).exec(),
             on_error=self._on_action_failed,
+            on_not_found=self._on_item_gone,
         )

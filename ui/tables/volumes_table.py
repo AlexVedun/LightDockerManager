@@ -33,10 +33,11 @@ def _used_color(row):
 
 
 class VolumesTab(QWidget):
-    def __init__(self, connection_manager, parent=None):
+    def __init__(self, connection_manager, parent=None, notify=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self._refreshing = False
+        self._notify = notify or (lambda message: None)
 
         columns = [
             self.tr("Name"),
@@ -149,8 +150,14 @@ class VolumesTab(QWidget):
         QMessageBox.critical(self, self.tr("Docker Error"), message)
         self.refresh()
 
-    def _on_bulk_action_finished(self, errors):
+    def _on_item_gone(self, message):
+        self._notify(message)
+        self.refresh()
+
+    def _on_bulk_action_finished(self, errors, stale):
         self.model.set_all_checked(False)
+        if stale:
+            self._notify(self.tr("%n item(s) no longer exist and were skipped.", None, len(stale)))
         if errors:
             QMessageBox.critical(self, self.tr("Docker Error"), "\n".join(errors))
         self.refresh()
@@ -176,6 +183,7 @@ class VolumesTab(QWidget):
             row["volume"],
             on_success=lambda attrs: InspectDialog(self.tr("Inspect: {name}").format(name=name), attrs, self).exec(),
             on_error=self._on_action_failed,
+            on_not_found=self._on_item_gone,
         )
 
     def _prune(self):

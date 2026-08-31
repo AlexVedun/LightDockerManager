@@ -2,6 +2,8 @@ from PySide6.QtWidgets import QApplication
 
 import time
 
+import docker.errors
+
 from workers.task_worker import TaskWorker, run_bulk_task, run_task
 
 QApplication.instance() or QApplication([])
@@ -91,12 +93,12 @@ def test_run_bulk_task_runs_every_task_and_reports_no_errors():
     finished = []
 
     tasks = [lambda i=i: calls.append(i) for i in range(3)]
-    run_bulk_task(owner, tasks, finished.append)
+    run_bulk_task(owner, tasks, lambda errors, stale: finished.append((errors, stale)))
 
     _pump_until(lambda: finished)
 
     assert calls == [0, 1, 2]
-    assert finished == [[]]
+    assert finished == [([], [])]
 
 
 def test_run_bulk_task_collects_errors_but_keeps_going():
@@ -107,8 +109,53 @@ def test_run_bulk_task_collects_errors_but_keeps_going():
         raise ValueError("bad")
 
     tasks = [lambda: 1, boom, lambda: 2]
-    run_bulk_task(owner, tasks, finished.append)
+    run_bulk_task(owner, tasks, lambda errors, stale: finished.append((errors, stale)))
 
     _pump_until(lambda: finished)
 
-    assert finished == [["bad"]]
+    assert finished == [(["bad"], [])]
+
+
+def test_run_bulk_task_collects_stale_items_separately_from_errors():
+    owner = _Owner()
+    finished = []
+
+    def gone():
+        raise docker.errors.NotFound("no such container")
+
+    tasks = [lambda: 1, gone, lambda: 2]
+    run_bulk_task(owner, tasks, lambda errors, stale: finished.append((errors, stale)))
+
+    _pump_until(lambda: finished)
+
+    errors, stale = finished[0]
+    assert errors == []
+    assert len(stale) == 1
+
+
+def test_run_task_routes_not_found_to_on_not_found_when_given():
+    owner = _Owner()
+    not_found_messages = []
+    errors = []
+
+    def gone():
+        raise docker.errors.NotFound("no such container")
+
+    worker = run_task(owner, gone, on_error=errors.append, on_not_found=not_found_messages.append)
+    _pump_events(worker)
+
+    assert errors == []
+    assert len(not_found_messages) == 1
+
+
+def test_run_task_falls_back_to_on_error_for_not_found_when_not_given():
+    owner = _Owner()
+    errors = []
+
+    def gone():
+        raise docker.errors.NotFound("no such container")
+
+    worker = run_task(owner, gone, on_error=errors.append)
+    _pump_events(worker)
+
+    assert len(errors) == 1

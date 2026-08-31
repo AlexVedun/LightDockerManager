@@ -4,94 +4,102 @@
 <context>
     <name>ContainersTab</name>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="39"/>
+        <location filename="../ui/tables/containers_table.py" line="40"/>
         <source></source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="39"/>
+        <location filename="../ui/tables/containers_table.py" line="40"/>
         <source>Name</source>
         <translation type="unfinished">Name</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="39"/>
+        <location filename="../ui/tables/containers_table.py" line="40"/>
         <source>Image</source>
         <translation type="unfinished">Image</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="39"/>
+        <location filename="../ui/tables/containers_table.py" line="40"/>
         <source>Status</source>
         <translation type="unfinished">Status</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="39"/>
+        <location filename="../ui/tables/containers_table.py" line="40"/>
         <source>Ports</source>
         <translation type="unfinished">Ports</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="74"/>
+        <location filename="../ui/tables/containers_table.py" line="75"/>
         <source>Refresh</source>
         <translation>Refresh</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="75"/>
+        <location filename="../ui/tables/containers_table.py" line="76"/>
         <source>Start</source>
         <translation>Start</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="76"/>
+        <location filename="../ui/tables/containers_table.py" line="77"/>
         <source>Stop</source>
         <translation>Stop</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="77"/>
+        <location filename="../ui/tables/containers_table.py" line="78"/>
         <source>Restart</source>
         <translation>Restart</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="78"/>
+        <location filename="../ui/tables/containers_table.py" line="79"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="79"/>
+        <location filename="../ui/tables/containers_table.py" line="80"/>
         <source>Unpause</source>
         <translation>Unpause</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="80"/>
+        <location filename="../ui/tables/containers_table.py" line="81"/>
         <source>Remove</source>
         <translation>Remove</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="81"/>
+        <location filename="../ui/tables/containers_table.py" line="82"/>
         <source>Logs</source>
         <translation>Logs</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="82"/>
+        <location filename="../ui/tables/containers_table.py" line="83"/>
         <source>Inspect</source>
         <translation>Inspect</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="137"/>
-        <location filename="../ui/tables/containers_table.py" line="155"/>
+        <location filename="../ui/tables/containers_table.py" line="138"/>
         <location filename="../ui/tables/containers_table.py" line="159"/>
+        <location filename="../ui/tables/containers_table.py" line="163"/>
         <source>Docker Error</source>
         <translation>Docker Error</translation>
     </message>
+    <message numerus="yes">
+        <location filename="../ui/tables/containers_table.py" line="157"/>
+        <source>%n item(s) no longer exist and were skipped.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="174"/>
+        <location filename="../ui/tables/containers_table.py" line="182"/>
         <source>Remove Container</source>
         <translation>Remove Container</translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="174"/>
+        <location filename="../ui/tables/containers_table.py" line="182"/>
         <source>Remove container(s) &quot;{names}&quot;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../ui/tables/containers_table.py" line="195"/>
+        <location filename="../ui/tables/containers_table.py" line="203"/>
         <source>Inspect: {name}</source>
         <translation>Inspect: {name}</translation>
     </message>
@@ -130,109 +138,117 @@
 <context>
     <name>ImagesTab</name>
     <message>
-        <location filename="../ui/tables/images_table.py" line="43"/>
+        <location filename="../ui/tables/images_table.py" line="44"/>
         <source>Repository:Tag</source>
         <translation>Repository:Tag</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="44"/>
+        <location filename="../ui/tables/images_table.py" line="45"/>
         <source>Image ID</source>
         <translation>Image ID</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="45"/>
+        <location filename="../ui/tables/images_table.py" line="46"/>
         <source>Size</source>
         <translation>Size</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="46"/>
+        <location filename="../ui/tables/images_table.py" line="47"/>
         <source>Used</source>
         <translation>Used</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="47"/>
+        <location filename="../ui/tables/images_table.py" line="48"/>
         <source>Created</source>
         <translation>Created</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="53"/>
+        <location filename="../ui/tables/images_table.py" line="54"/>
         <source>Yes</source>
         <translation>Yes</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="53"/>
+        <location filename="../ui/tables/images_table.py" line="54"/>
         <source>No</source>
         <translation>No</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="89"/>
+        <location filename="../ui/tables/images_table.py" line="90"/>
         <source>Refresh</source>
         <translation>Refresh</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="90"/>
+        <location filename="../ui/tables/images_table.py" line="91"/>
         <source>Pull</source>
         <translation>Pull</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="91"/>
+        <location filename="../ui/tables/images_table.py" line="92"/>
         <source>Remove</source>
         <translation>Remove</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="92"/>
+        <location filename="../ui/tables/images_table.py" line="93"/>
         <source>Inspect</source>
         <translation>Inspect</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="93"/>
+        <location filename="../ui/tables/images_table.py" line="94"/>
         <source>Prune</source>
         <translation>Prune</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="134"/>
-        <location filename="../ui/tables/images_table.py" line="151"/>
-        <location filename="../ui/tables/images_table.py" line="156"/>
+        <location filename="../ui/tables/images_table.py" line="135"/>
+        <location filename="../ui/tables/images_table.py" line="152"/>
+        <location filename="../ui/tables/images_table.py" line="164"/>
         <source>Docker Error</source>
         <translation>Docker Error</translation>
     </message>
+    <message numerus="yes">
+        <location filename="../ui/tables/images_table.py" line="162"/>
+        <source>%n item(s) no longer exist and were skipped.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="163"/>
+        <location filename="../ui/tables/images_table.py" line="171"/>
         <source>Pull Image</source>
         <translation>Pull Image</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="163"/>
+        <location filename="../ui/tables/images_table.py" line="171"/>
         <source>Image name (e.g. nginx:latest):</source>
         <translation>Image name (e.g. nginx:latest):</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="180"/>
+        <location filename="../ui/tables/images_table.py" line="188"/>
         <source>Remove Image</source>
         <translation>Remove Image</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="180"/>
+        <location filename="../ui/tables/images_table.py" line="188"/>
         <source>Remove image(s) &quot;{tags}&quot;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="194"/>
+        <location filename="../ui/tables/images_table.py" line="202"/>
         <source>Inspect: {tags}</source>
         <translation>Inspect: {tags}</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="202"/>
+        <location filename="../ui/tables/images_table.py" line="211"/>
         <source>Prune Images</source>
         <translation>Prune Images</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="202"/>
+        <location filename="../ui/tables/images_table.py" line="211"/>
         <source>Remove all unused images?</source>
         <translation>Remove all unused images?</translation>
     </message>
     <message>
-        <location filename="../ui/tables/images_table.py" line="213"/>
+        <location filename="../ui/tables/images_table.py" line="222"/>
         <source>Prune Complete</source>
         <translation>Prune Complete</translation>
     </message>
@@ -253,97 +269,97 @@
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../ui/main_window.py" line="48"/>
+        <location filename="../ui/main_window.py" line="49"/>
         <source>Connection:</source>
         <translation>Connection:</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="65"/>
+        <location filename="../ui/main_window.py" line="66"/>
         <source>Containers</source>
         <translation>Containers</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="66"/>
+        <location filename="../ui/main_window.py" line="67"/>
         <source>Images</source>
         <translation>Images</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="67"/>
+        <location filename="../ui/main_window.py" line="68"/>
         <source>Volumes</source>
         <translation>Volumes</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="68"/>
+        <location filename="../ui/main_window.py" line="69"/>
         <source>Networks</source>
         <translation>Networks</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="84"/>
+        <location filename="../ui/main_window.py" line="85"/>
         <source>Settings</source>
         <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="85"/>
+        <location filename="../ui/main_window.py" line="86"/>
         <source>Connections...</source>
         <translation>Connections...</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="88"/>
-        <location filename="../ui/main_window.py" line="106"/>
+        <location filename="../ui/main_window.py" line="89"/>
+        <location filename="../ui/main_window.py" line="107"/>
         <source>Language</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="96"/>
+        <location filename="../ui/main_window.py" line="97"/>
         <source>Tools</source>
         <translation>Tools</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="97"/>
+        <location filename="../ui/main_window.py" line="98"/>
         <source>Volume Transfer...</source>
         <translation>Volume Transfer...</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="107"/>
+        <location filename="../ui/main_window.py" line="108"/>
         <source>Restart LightDockerManager for the language change to take effect.</source>
         <translation>Restart LightDockerManager for the language change to take effect.</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="120"/>
+        <location filename="../ui/main_window.py" line="121"/>
         <source>Local</source>
         <translation>Local</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="143"/>
-        <location filename="../ui/main_window.py" line="153"/>
+        <location filename="../ui/main_window.py" line="144"/>
+        <location filename="../ui/main_window.py" line="154"/>
         <source>Connecting...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="169"/>
-        <location filename="../ui/main_window.py" line="173"/>
+        <location filename="../ui/main_window.py" line="170"/>
+        <location filename="../ui/main_window.py" line="174"/>
         <source>Connection Error</source>
         <translation>Connection Error</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="174"/>
+        <location filename="../ui/main_window.py" line="175"/>
         <source>Could not connect to &quot;{name}&quot;:
 {error}</source>
         <translation>Could not connect to &quot;{name}&quot;:
 {error}</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="210"/>
+        <location filename="../ui/main_window.py" line="211"/>
         <source>Docker events connection lost ({message}), reconnecting...</source>
         <translation>Docker events connection lost ({message}), reconnecting...</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="224"/>
+        <location filename="../ui/main_window.py" line="228"/>
         <source>Connected: {mode}</source>
         <translation>Connected: {mode}</translation>
     </message>
     <message>
-        <location filename="../ui/main_window.py" line="226"/>
+        <location filename="../ui/main_window.py" line="230"/>
         <source>Not connected</source>
         <translation>Not connected</translation>
     </message>
@@ -384,124 +400,132 @@
 <context>
     <name>NetworksTab</name>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="41"/>
+        <location filename="../ui/tables/networks_table.py" line="42"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="42"/>
+        <location filename="../ui/tables/networks_table.py" line="43"/>
         <source>Driver</source>
         <translation>Driver</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="43"/>
+        <location filename="../ui/tables/networks_table.py" line="44"/>
         <source>Scope</source>
         <translation>Scope</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="44"/>
+        <location filename="../ui/tables/networks_table.py" line="45"/>
         <source>Connected Containers</source>
         <translation>Connected Containers</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="45"/>
+        <location filename="../ui/tables/networks_table.py" line="46"/>
         <source>Used</source>
         <translation>Used</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="52"/>
+        <location filename="../ui/tables/networks_table.py" line="53"/>
         <source>Yes</source>
         <translation>Yes</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="52"/>
+        <location filename="../ui/tables/networks_table.py" line="53"/>
         <source>No</source>
         <translation>No</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="85"/>
+        <location filename="../ui/tables/networks_table.py" line="86"/>
         <source>Refresh</source>
         <translation>Refresh</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="86"/>
+        <location filename="../ui/tables/networks_table.py" line="87"/>
         <source>Remove</source>
         <translation>Remove</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="87"/>
+        <location filename="../ui/tables/networks_table.py" line="88"/>
         <source>Inspect</source>
         <translation>Inspect</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="88"/>
+        <location filename="../ui/tables/networks_table.py" line="89"/>
         <source>Connect Container</source>
         <translation>Connect Container</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="89"/>
+        <location filename="../ui/tables/networks_table.py" line="90"/>
         <source>Disconnect Container</source>
         <translation>Disconnect Container</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="90"/>
+        <location filename="../ui/tables/networks_table.py" line="91"/>
         <source>Prune</source>
         <translation>Prune</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="139"/>
-        <location filename="../ui/tables/networks_table.py" line="156"/>
-        <location filename="../ui/tables/networks_table.py" line="161"/>
+        <location filename="../ui/tables/networks_table.py" line="140"/>
+        <location filename="../ui/tables/networks_table.py" line="157"/>
+        <location filename="../ui/tables/networks_table.py" line="169"/>
         <source>Docker Error</source>
         <translation>Docker Error</translation>
     </message>
+    <message numerus="yes">
+        <location filename="../ui/tables/networks_table.py" line="167"/>
+        <source>%n item(s) no longer exist and were skipped.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="169"/>
+        <location filename="../ui/tables/networks_table.py" line="177"/>
         <source>Remove Network</source>
         <translation>Remove Network</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="169"/>
+        <location filename="../ui/tables/networks_table.py" line="177"/>
         <source>Remove network(s) &quot;{names}&quot;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="183"/>
+        <location filename="../ui/tables/networks_table.py" line="191"/>
         <source>Inspect: {name}</source>
         <translation>Inspect: {name}</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="189"/>
+        <location filename="../ui/tables/networks_table.py" line="198"/>
         <source>No containers available.</source>
         <translation>No containers available.</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="192"/>
+        <location filename="../ui/tables/networks_table.py" line="201"/>
         <source>Container:</source>
         <translation>Container:</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="212"/>
+        <location filename="../ui/tables/networks_table.py" line="221"/>
         <source>Connect Container to Network</source>
         <translation>Connect Container to Network</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="239"/>
+        <location filename="../ui/tables/networks_table.py" line="249"/>
         <source>Disconnect Container from Network</source>
         <translation>Disconnect Container from Network</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="255"/>
+        <location filename="../ui/tables/networks_table.py" line="266"/>
         <source>Prune Networks</source>
         <translation>Prune Networks</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="255"/>
+        <location filename="../ui/tables/networks_table.py" line="266"/>
         <source>Remove all unused networks?</source>
         <translation>Remove all unused networks?</translation>
     </message>
     <message>
-        <location filename="../ui/tables/networks_table.py" line="266"/>
+        <location filename="../ui/tables/networks_table.py" line="277"/>
         <source>Prune Complete</source>
         <translation>Prune Complete</translation>
     </message>
@@ -547,7 +571,7 @@
 <context>
     <name>TaskWorker</name>
     <message>
-        <location filename="../workers/task_worker.py" line="22"/>
+        <location filename="../workers/task_worker.py" line="23"/>
         <source>This item no longer exists. It may have been removed or recreated outside this application. The list has been refreshed.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -680,99 +704,107 @@ If a volume with this name already exists on the destination, its contents may b
 <context>
     <name>VolumesTab</name>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="42"/>
+        <location filename="../ui/tables/volumes_table.py" line="43"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="43"/>
+        <location filename="../ui/tables/volumes_table.py" line="44"/>
         <source>Driver</source>
         <translation>Driver</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="44"/>
+        <location filename="../ui/tables/volumes_table.py" line="45"/>
         <source>Mountpoint</source>
         <translation>Mountpoint</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="45"/>
+        <location filename="../ui/tables/volumes_table.py" line="46"/>
         <source>Used</source>
         <translation>Used</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="46"/>
+        <location filename="../ui/tables/volumes_table.py" line="47"/>
         <source>Size</source>
         <translation>Size</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="52"/>
+        <location filename="../ui/tables/volumes_table.py" line="53"/>
         <source>Yes</source>
         <translation>Yes</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="52"/>
+        <location filename="../ui/tables/volumes_table.py" line="53"/>
         <source>No</source>
         <translation>No</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="87"/>
+        <location filename="../ui/tables/volumes_table.py" line="88"/>
         <source>Refresh</source>
         <translation>Refresh</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="88"/>
+        <location filename="../ui/tables/volumes_table.py" line="89"/>
         <source>Remove</source>
         <translation>Remove</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="89"/>
+        <location filename="../ui/tables/volumes_table.py" line="90"/>
         <source>Inspect</source>
         <translation>Inspect</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="90"/>
+        <location filename="../ui/tables/volumes_table.py" line="91"/>
         <source>Prune</source>
         <translation>Prune</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="91"/>
+        <location filename="../ui/tables/volumes_table.py" line="92"/>
         <source>Transfer to another host</source>
         <translation>Transfer to another host</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="132"/>
-        <location filename="../ui/tables/volumes_table.py" line="149"/>
-        <location filename="../ui/tables/volumes_table.py" line="154"/>
+        <location filename="../ui/tables/volumes_table.py" line="133"/>
+        <location filename="../ui/tables/volumes_table.py" line="150"/>
+        <location filename="../ui/tables/volumes_table.py" line="162"/>
         <source>Docker Error</source>
         <translation>Docker Error</translation>
     </message>
+    <message numerus="yes">
+        <location filename="../ui/tables/volumes_table.py" line="160"/>
+        <source>%n item(s) no longer exist and were skipped.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="162"/>
+        <location filename="../ui/tables/volumes_table.py" line="170"/>
         <source>Remove Volume</source>
         <translation>Remove Volume</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="162"/>
+        <location filename="../ui/tables/volumes_table.py" line="170"/>
         <source>Remove volume(s) &quot;{names}&quot;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="176"/>
+        <location filename="../ui/tables/volumes_table.py" line="184"/>
         <source>Inspect: {name}</source>
         <translation>Inspect: {name}</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="184"/>
+        <location filename="../ui/tables/volumes_table.py" line="193"/>
         <source>Prune Volumes</source>
         <translation>Prune Volumes</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="184"/>
+        <location filename="../ui/tables/volumes_table.py" line="193"/>
         <source>Remove all unused volumes?</source>
         <translation>Remove all unused volumes?</translation>
     </message>
     <message>
-        <location filename="../ui/tables/volumes_table.py" line="195"/>
+        <location filename="../ui/tables/volumes_table.py" line="204"/>
         <source>Prune Complete</source>
         <translation>Prune Complete</translation>
     </message>

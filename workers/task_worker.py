@@ -7,6 +7,7 @@ class TaskWorker(QThread):
 
     succeeded = Signal(object)
     failed = Signal(str)
+    not_found = Signal(str)
 
     def __init__(self, func, *args, parent=None, **kwargs):
         super().__init__(parent)
@@ -18,7 +19,7 @@ class TaskWorker(QThread):
         try:
             result = self._func(*self._args, **self._kwargs)
         except docker.errors.NotFound:
-            self.failed.emit(self.tr(
+            self.not_found.emit(self.tr(
                 "This item no longer exists. It may have been removed or "
                 "recreated outside this application. The list has been refreshed."
             ))
@@ -29,11 +30,15 @@ class TaskWorker(QThread):
         self.succeeded.emit(result)
 
 
-def run_task(owner, func, *args, on_success=None, on_error=None, **kwargs):
+def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=None, **kwargs):
     """Runs func(*args, **kwargs) on a background QThread.
 
     The worker is kept alive on `owner` (in an internal list) until it
     finishes, since nothing else would otherwise hold a reference to it.
+
+    A stale-item error (the target was removed or recreated outside this app)
+    is routed to `on_not_found` when given, falling back to `on_error`
+    otherwise, so existing callers keep working unchanged.
     """
     if not hasattr(owner, "_background_workers"):
         owner._background_workers = []
@@ -48,6 +53,10 @@ def run_task(owner, func, *args, on_success=None, on_error=None, **kwargs):
         worker.succeeded.connect(on_success)
     if on_error is not None:
         worker.failed.connect(on_error)
+    if on_not_found is not None:
+        worker.not_found.connect(on_not_found)
+    elif on_error is not None:
+        worker.not_found.connect(on_error)
     worker.finished.connect(_cleanup)
 
     owner._background_workers.append(worker)
@@ -58,15 +67,19 @@ def run_task(owner, func, *args, on_success=None, on_error=None, **kwargs):
 def run_bulk_task(owner, tasks, on_finished):
     """Runs each zero-arg callable in `tasks` sequentially on background threads.
 
-    Calls on_finished(errors) once every task has completed, where `errors`
-    is the list of error messages collected from failed tasks.
+    Calls on_finished(errors, stale) once every task has completed. `errors`
+    is the list of error messages collected from failed tasks; `stale` is the
+    list of messages from tasks whose target no longer existed (removed or
+    recreated outside this app) - kept separate so callers can report those
+    unobtrusively instead of as hard errors.
     """
     errors = []
+    stale = []
     remaining = list(tasks)
 
     def _run_next():
         if not remaining:
-            on_finished(errors)
+            on_finished(errors, stale)
             return
         task = remaining.pop(0)
 
@@ -74,6 +87,10 @@ def run_bulk_task(owner, tasks, on_finished):
             errors.append(message)
             _run_next()
 
-        run_task(owner, task, on_success=lambda _: _run_next(), on_error=_on_error)
+        def _on_not_found(message):
+            stale.append(message)
+            _run_next()
+
+        run_task(owner, task, on_success=lambda _: _run_next(), on_error=_on_error, on_not_found=_on_not_found)
 
     _run_next()
