@@ -28,7 +28,7 @@ def test_list_containers_formats_rows():
     assert row["image"] == "nginx:latest"
     assert row["status"] == "running"
     assert row["ports"] == ""
-    client.containers.list.assert_called_once_with(all=True)
+    client.containers.list.assert_called_once_with(all=True, ignore_removed=True)
 
 
 def test_list_containers_falls_back_to_short_id_without_tags():

@@ -219,7 +219,7 @@ class NetworksTab(QWidget):
             return
         run_task(
             self,
-            lambda: client.containers.list(all=True),
+            lambda: client.containers.list(all=True, ignore_removed=True),
             on_success=lambda containers: self._prompt_and_connect(row, containers),
             on_error=self._on_action_failed,
         )
@@ -247,7 +247,7 @@ class NetworksTab(QWidget):
             return
         run_task(
             self,
-            lambda: client.containers.list(all=True),
+            lambda: client.containers.list(all=True, ignore_removed=True),
             on_success=lambda containers: self._prompt_and_disconnect(row, containers),
             on_error=self._on_action_failed,
         )

@@ -17,7 +17,7 @@ def list_volumes(client):
 
 def _used_volume_names(client):
     used = set()
-    for container in client.containers.list(all=True):
+    for container in client.containers.list(all=True, ignore_removed=True):
         for mount in container.attrs.get("Mounts") or []:
             if mount.get("Type") == "volume" and mount.get("Name"):
                 used.add(mount["Name"])

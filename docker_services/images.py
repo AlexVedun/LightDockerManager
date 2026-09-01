@@ -1,5 +1,5 @@
 def list_images(client):
-    containers = client.containers.list(all=True)
+    containers = client.containers.list(all=True, ignore_removed=True)
     used_ids = {c.attrs.get("Image") for c in containers}
 
     rows = []
