@@ -1,4 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
+
+import docker.errors
 
 from docker_services import containers as containers_service
 
@@ -56,6 +58,17 @@ def test_list_containers_formats_unpublished_ports():
     rows = containers_service.list_containers(client)
 
     assert rows[0]["ports"] == "80/tcp"
+
+
+def test_list_containers_skips_container_whose_image_vanished():
+    client = MagicMock()
+    gone = make_container(name="gone")
+    type(gone).image = PropertyMock(side_effect=docker.errors.NotFound("no such image"))
+    client.containers.list.return_value = [gone, make_container(name="web")]
+
+    rows = containers_service.list_containers(client)
+
+    assert [row["name"] for row in rows] == ["web"]
 
 
 def test_actions_delegate_to_container_methods():

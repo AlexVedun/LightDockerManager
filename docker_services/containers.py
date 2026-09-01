@@ -1,9 +1,15 @@
+import docker.errors
+
+
 def list_containers(client):
     """Return formatted rows for the containers table."""
     rows = []
     for container in client.containers.list(all=True):
-        image_tags = container.image.tags
-        image_name = image_tags[0] if image_tags else container.image.short_id
+        try:
+            image_tags = container.image.tags
+            image_name = image_tags[0] if image_tags else container.image.short_id
+        except docker.errors.NotFound:
+            continue
 
         rows.append({
             "id": container.id,
