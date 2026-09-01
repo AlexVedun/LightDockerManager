@@ -17,7 +17,12 @@ from docker_services.common import reload_and_get_attrs
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
-from ui.tables.base import DictRowsTableModel, install_column_sorting, install_row_checkboxes
+from ui.tables.base import (
+    DictRowsTableModel,
+    install_column_sorting,
+    install_column_width_persistence,
+    install_row_checkboxes,
+)
 from workers.task_worker import run_bulk_task, run_task
 
 BULLET_COLUMN = 0
@@ -70,7 +75,9 @@ class ContainersTab(QWidget):
             sortable_columns={NAME_COLUMN + 1, STATUS_COLUMN + 1},
             checkbox_column=self.model.CHECKBOX_COLUMN,
             on_toggle_all=lambda: self.model.set_all_checked(not self.model.has_checked()),
+            table_key="containers",
         )
+        install_column_width_persistence(self.view, "containers", checkbox_column=self.model.CHECKBOX_COLUMN)
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_start = QPushButton(self.tr("Start"))

@@ -1,5 +1,7 @@
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
+from app_settings import load_settings, save_settings
+
 
 class DictRowsTableModel(QAbstractTableModel):
     """Generic table model over a list of dict rows.
@@ -111,15 +113,36 @@ def install_row_checkboxes(view, proxy, checkbox_column):
     view.clicked.connect(_on_clicked)
 
 
-def install_column_sorting(view, proxy, sortable_columns, checkbox_column=None, on_toggle_all=None):
+def install_column_sorting(view, proxy, sortable_columns, checkbox_column=None, on_toggle_all=None, table_key=None):
     """Wires header clicks to sort `proxy`, restricted to `sortable_columns`.
 
     Clicking the checkbox column's header (if given) toggles select-all/none
-    instead of sorting.
+    instead of sorting. Shows a sort-direction indicator arrow in the header,
+    and when `table_key` is given, remembers the applied sort column/order
+    across restarts.
     """
     header = view.horizontalHeader()
     header.setSectionsClickable(True)
+    header.setSortIndicatorShown(True)
     state = {"column": None, "order": Qt.AscendingOrder}
+
+    if table_key is not None:
+        saved = load_settings().get("table_sort", {}).get(table_key)
+        if saved is not None and saved.get("column") in sortable_columns:
+            state["column"] = saved["column"]
+            state["order"] = Qt.DescendingOrder if saved.get("order") == "desc" else Qt.AscendingOrder
+            header.setSortIndicator(state["column"], state["order"])
+            proxy.sort(state["column"], state["order"])
+
+    def _persist_sort():
+        if table_key is None:
+            return
+        settings = load_settings()
+        settings.setdefault("table_sort", {})[table_key] = {
+            "column": state["column"],
+            "order": "desc" if state["order"] == Qt.DescendingOrder else "asc",
+        }
+        save_settings(settings)
 
     def _on_section_clicked(column):
         if column == checkbox_column and on_toggle_all is not None:
@@ -135,5 +158,36 @@ def install_column_sorting(view, proxy, sortable_columns, checkbox_column=None, 
         state["order"] = order
         header.setSortIndicator(column, order)
         proxy.sort(column, order)
+        _persist_sort()
 
     header.sectionClicked.connect(_on_section_clicked)
+
+
+def install_column_width_persistence(view, table_key, checkbox_column=None):
+    """Restores saved column widths for `table_key` and persists them on resize.
+
+    The checkbox column (fixed-width) and the last column (stretched via
+    `setStretchLastSection`) are excluded since their widths aren't
+    meaningful to remember.
+    """
+    header = view.horizontalHeader()
+    last_column = header.count() - 1
+
+    def _skip(column):
+        return column == checkbox_column or column == last_column
+
+    saved_widths = load_settings().get("table_column_widths", {}).get(table_key, {})
+    for column_str, width in saved_widths.items():
+        column = int(column_str)
+        if not _skip(column):
+            header.resizeSection(column, width)
+
+    def _on_section_resized(column, old_size, new_size):
+        if _skip(column):
+            return
+        settings = load_settings()
+        widths = settings.setdefault("table_column_widths", {}).setdefault(table_key, {})
+        widths[str(column)] = new_size
+        save_settings(settings)
+
+    header.sectionResized.connect(_on_section_resized)

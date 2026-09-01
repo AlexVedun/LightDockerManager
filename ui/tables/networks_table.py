@@ -18,7 +18,12 @@ from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
-from ui.tables.base import DictRowsTableModel, install_column_sorting, install_row_checkboxes
+from ui.tables.base import (
+    DictRowsTableModel,
+    install_column_sorting,
+    install_column_width_persistence,
+    install_row_checkboxes,
+)
 from workers.task_worker import run_bulk_task, run_task
 
 NAME_COLUMN = 0
@@ -81,7 +86,9 @@ class NetworksTab(QWidget):
             sortable_columns={NAME_COLUMN + 1},
             checkbox_column=self.model.CHECKBOX_COLUMN,
             on_toggle_all=lambda: self.model.set_all_checked(not self.model.has_checked()),
+            table_key="networks",
         )
+        install_column_width_persistence(self.view, "networks", checkbox_column=self.model.CHECKBOX_COLUMN)
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_remove = QPushButton(self.tr("Remove"))
