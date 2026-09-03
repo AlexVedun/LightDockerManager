@@ -43,6 +43,7 @@ mkdir -p "$DIST_DIR"
     --windowed \
     --noconfirm \
     --add-data "i18n:i18n" \
+    --add-data "packaging/icon.png:packaging" \
     main.py
 
 mkdir -p AppDir
