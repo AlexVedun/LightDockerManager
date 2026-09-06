@@ -1,6 +1,9 @@
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtGui import QColor, QFont
 
 from app_settings import load_settings, save_settings
+
+GROUP_HEADER_BACKGROUND = QColor("#e3e8ec")
 
 
 class DictRowsTableModel(QAbstractTableModel):
@@ -9,11 +12,27 @@ class DictRowsTableModel(QAbstractTableModel):
     Column 0 is always a checkbox column (keyed by `row_key`) so several rows
     can be selected at once for a bulk action; the caller's `columns` /
     `accessors` describe the remaining, display-only columns.
+
+    When `group_key` is given, rows are clustered under a group-header
+    pseudo-row per distinct key (sorted with the falsy key, e.g. "", last),
+    with a checkbox that selects/deselects every row in that group at once.
+    `row_at` returns None for these header rows so callers already treating
+    "no row" as "nothing actionable" need no changes.
     """
 
     CHECKBOX_COLUMN = 0
 
-    def __init__(self, columns, accessors, row_key, color_column=None, color_getter=None, sort_accessors=None):
+    def __init__(
+        self,
+        columns,
+        accessors,
+        row_key,
+        color_column=None,
+        color_getter=None,
+        sort_accessors=None,
+        group_key=None,
+        group_label=None,
+    ):
         super().__init__()
         self._columns = [""] + list(columns)
         self._accessors = accessors
@@ -21,21 +40,66 @@ class DictRowsTableModel(QAbstractTableModel):
         self._color_column = None if color_column is None else color_column + 1
         self._color_getter = color_getter
         self._sort_accessors = sort_accessors or {}
+        self._group_key = group_key
+        self._group_label = group_label or (lambda key: key)
         self._checked = set()
         self._rows = []
+        self._display = []
+        self._groups = {}
+        self._group_order = {}
 
     def set_rows(self, rows):
         self.beginResetModel()
         self._rows = rows
         live_keys = {self._row_key(row) for row in rows}
         self._checked &= live_keys
+        self._rebuild_display()
         self.endResetModel()
 
+    def _rebuild_display(self):
+        if self._group_key is None:
+            self._display = [("row", row) for row in self._rows]
+            self._groups = {}
+            self._group_order = {}
+            return
+
+        groups = {}
+        for row in self._rows:
+            groups.setdefault(self._group_key(row), []).append(row)
+        ordered_keys = sorted(groups.keys(), key=lambda key: (not key, key))
+
+        self._groups = groups
+        self._group_order = {key: index for index, key in enumerate(ordered_keys)}
+        display = []
+        for key in ordered_keys:
+            display.append(("group", key))
+            for row in groups[key]:
+                display.append(("row", row))
+        self._display = display
+
     def row_at(self, row_index):
-        return self._rows[row_index]
+        kind, payload = self._display[row_index]
+        return payload if kind == "row" else None
+
+    def is_group_row(self, row_index):
+        return self._display[row_index][0] == "group"
+
+    def sort_key(self, row_index, column):
+        """Sort key keeping groups contiguous and headers before their members.
+
+        `column` (a display-column index, offset by the checkbox column)
+        only affects ordering within a group of real rows.
+        """
+        kind, payload = self._display[row_index]
+        if kind == "group":
+            return (self._group_order.get(payload, 0), 0, None)
+        group = self._group_key(payload) if self._group_key else None
+        field_col = column - 1
+        accessor = self._sort_accessors.get(field_col, self._accessors[field_col])
+        return (self._group_order.get(group, 0), 1, accessor(payload))
 
     def rowCount(self, parent=QModelIndex()):
-        return len(self._rows)
+        return len(self._display)
 
     def columnCount(self, parent=QModelIndex()):
         return len(self._columns)
@@ -45,11 +109,39 @@ class DictRowsTableModel(QAbstractTableModel):
             return self._columns[section]
         return None
 
+    def flags(self, index):
+        base = super().flags(index)
+        if not index.isValid():
+            return base
+        kind, _ = self._display[index.row()]
+        if kind == "group":
+            return base & ~Qt.ItemIsSelectable
+        return base
+
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
             return None
-        row = self._rows[index.row()]
+        kind, payload = self._display[index.row()]
         col = index.column()
+
+        if kind == "group":
+            if role == Qt.BackgroundRole:
+                return GROUP_HEADER_BACKGROUND
+            if col == self.CHECKBOX_COLUMN:
+                if role == Qt.CheckStateRole:
+                    members = self._groups.get(payload, [])
+                    if members and all(self._row_key(member) in self._checked for member in members):
+                        return Qt.Checked
+                    return Qt.Unchecked
+                if role == Qt.DisplayRole:
+                    return "  " + self._group_label(payload)
+                if role == Qt.FontRole:
+                    font = QFont()
+                    font.setBold(True)
+                    return font
+            return None
+
+        row = payload
 
         if col == self.CHECKBOX_COLUMN:
             if role == Qt.CheckStateRole:
@@ -70,15 +162,28 @@ class DictRowsTableModel(QAbstractTableModel):
         return None
 
     def setData(self, index, value, role=Qt.EditRole):
-        if role == Qt.CheckStateRole and index.column() == self.CHECKBOX_COLUMN:
-            key = self._row_key(self._rows[index.row()])
+        if role != Qt.CheckStateRole or index.column() != self.CHECKBOX_COLUMN:
+            return False
+
+        kind, payload = self._display[index.row()]
+        if kind == "group":
+            keys = {self._row_key(member) for member in self._groups.get(payload, [])}
             if value == Qt.Checked:
-                self._checked.add(key)
+                self._checked |= keys
             else:
-                self._checked.discard(key)
-            self.dataChanged.emit(index, index, [Qt.CheckStateRole])
+                self._checked -= keys
+            top_left = self.index(0, self.CHECKBOX_COLUMN)
+            bottom_right = self.index(self.rowCount() - 1, self.CHECKBOX_COLUMN)
+            self.dataChanged.emit(top_left, bottom_right, [Qt.CheckStateRole])
             return True
-        return False
+
+        key = self._row_key(payload)
+        if value == Qt.Checked:
+            self._checked.add(key)
+        else:
+            self._checked.discard(key)
+        self.dataChanged.emit(index, index, [Qt.CheckStateRole])
+        return True
 
     def checked_rows(self):
         return [row for row in self._rows if self._row_key(row) in self._checked]
@@ -91,8 +196,39 @@ class DictRowsTableModel(QAbstractTableModel):
             return
         self._checked = {self._row_key(row) for row in self._rows} if checked else set()
         top_left = self.index(0, self.CHECKBOX_COLUMN)
-        bottom_right = self.index(len(self._rows) - 1, self.CHECKBOX_COLUMN)
+        bottom_right = self.index(self.rowCount() - 1, self.CHECKBOX_COLUMN)
         self.dataChanged.emit(top_left, bottom_right, [Qt.CheckStateRole])
+
+
+class GroupedSortProxyModel(QSortFilterProxyModel):
+    """Sorts a grouped `DictRowsTableModel` by delegating to its `sort_key`.
+
+    Keeps group headers and their members contiguous regardless of which
+    column the user clicks to sort, since `sort_key` only lets the clicked
+    column affect ordering within a group. Qt's descending mode is
+    implemented by swapping the arguments given to `lessThan` (not by
+    negating its result), so a plain tuple comparison would also reverse
+    the group order itself; the group/header part is explicitly
+    re-inverted here to cancel that out and keep it order-independent,
+    while the in-group value naturally ends up following the requested
+    direction.
+    """
+
+    def lessThan(self, left, right):
+        model = self.sourceModel()
+        left_group, left_header, left_value = model.sort_key(left.row(), left.column())
+        right_group, right_header, right_value = model.sort_key(right.row(), right.column())
+        descending = self.sortOrder() == Qt.DescendingOrder
+
+        if left_group != right_group:
+            result = left_group < right_group
+            return not result if descending else result
+        if left_header != right_header:
+            result = left_header < right_header
+            return not result if descending else result
+        if left_value is None or right_value is None:
+            return False
+        return left_value < right_value
 
 
 def install_row_checkboxes(view, proxy, checkbox_column):

@@ -11,12 +11,15 @@ def list_containers(client):
         except docker.errors.NotFound:
             continue
 
+        labels = container.labels or {}
+
         rows.append({
             "id": container.id,
             "name": container.name,
             "image": image_name,
             "status": container.status,
             "ports": _format_ports(container.attrs.get("NetworkSettings", {}).get("Ports") or {}),
+            "project": labels.get("com.docker.compose.project", ""),
             "container": container,
         })
     return rows

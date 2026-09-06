@@ -1,6 +1,5 @@
 import functools
 
-from PySide6.QtCore import QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -19,6 +18,7 @@ from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
 from ui.tables.base import (
     DictRowsTableModel,
+    GroupedSortProxyModel,
     install_column_sorting,
     install_column_width_persistence,
     install_row_checkboxes,
@@ -56,10 +56,11 @@ class ContainersTab(QWidget):
             row_key=lambda r: r["container"].id,
             color_column=BULLET_COLUMN,
             color_getter=lambda r: STATUS_COLORS.get(r["status"], DEFAULT_STATUS_COLOR),
+            group_key=lambda r: r["project"],
+            group_label=lambda key: key if key else self.tr("Standalone"),
         )
-        self.proxy = QSortFilterProxyModel(self)
+        self.proxy = GroupedSortProxyModel(self)
         self.proxy.setSourceModel(self.model)
-        self.proxy.setSortRole(Qt.UserRole)
 
         self.view = QTableView(self)
         self.view.setModel(self.proxy)
@@ -78,6 +79,7 @@ class ContainersTab(QWidget):
             table_key="containers",
         )
         install_column_width_persistence(self.view, "containers", checkbox_column=self.model.CHECKBOX_COLUMN)
+        self.proxy.layoutChanged.connect(self._apply_group_spans)
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_start = QPushButton(self.tr("Start"))
@@ -124,6 +126,7 @@ class ContainersTab(QWidget):
         client = self.connection_manager.client
         if client is None:
             self.model.set_rows([])
+            self._apply_group_spans()
             return
         if self._refreshing:
             return
@@ -139,6 +142,15 @@ class ContainersTab(QWidget):
     def _on_refresh_succeeded(self, rows):
         self._refreshing = False
         self.model.set_rows(rows)
+        self._apply_group_spans()
+
+    def _apply_group_spans(self):
+        self.view.clearSpans()
+        column_count = self.model.columnCount()
+        for proxy_row in range(self.proxy.rowCount()):
+            source_row = self.proxy.mapToSource(self.proxy.index(proxy_row, 0)).row()
+            if self.model.is_group_row(source_row):
+                self.view.setSpan(proxy_row, 0, 1, column_count)
 
     def _on_refresh_failed(self, message):
         self._refreshing = False
