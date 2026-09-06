@@ -7,6 +7,8 @@ cd "$PROJECT_ROOT"
 
 PYTHON="${PYTHON:-.venv/bin/python}"
 
+VERSION="$("$PYTHON" -c 'from version import __version__; print(__version__)')"
+
 resolve_appimagetool() {
     if [ -n "${APPIMAGETOOL:-}" ]; then
         echo "$APPIMAGETOOL"
@@ -58,7 +60,9 @@ exec "$HERE/LightDockerManager" "$@"
 EOF
 chmod +x AppDir/AppRun
 
-"$APPIMAGETOOL" AppDir "$DIST_DIR/LightDockerManager-x86_64.AppImage"
+OUTPUT_FILE="$DIST_DIR/LightDockerManager-$VERSION-x86_64.AppImage"
+
+"$APPIMAGETOOL" AppDir "$OUTPUT_FILE"
 rm -rf build dist AppDir
 
-echo "Built: $DIST_DIR/LightDockerManager-x86_64.AppImage"
+echo "Built: $OUTPUT_FILE"

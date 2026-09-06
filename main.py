@@ -9,6 +9,7 @@ from app_settings import load_settings
 from connection.manager import ConnectionManager
 from i18n_loader import install_translator, resolve_language
 from ui.main_window import MainWindow
+from version import __version__
 
 
 def _icon_path():
@@ -18,6 +19,8 @@ def _icon_path():
 
 def main():
     app = QApplication(sys.argv)
+    app.setApplicationName("LightDockerManager")
+    app.setApplicationVersion(__version__)
     app.setWindowIcon(QIcon(str(_icon_path())))
 
     settings = load_settings()
