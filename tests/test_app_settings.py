@@ -4,7 +4,7 @@ import app_settings
 def test_load_settings_returns_defaults_when_file_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(app_settings, "CONFIG_FILE", tmp_path / "settings.json")
 
-    assert app_settings.load_settings() == {"language": "auto"}
+    assert app_settings.load_settings() == app_settings.DEFAULT_SETTINGS
 
 
 def test_save_and_load_round_trip(tmp_path, monkeypatch):
@@ -13,7 +13,7 @@ def test_save_and_load_round_trip(tmp_path, monkeypatch):
 
     app_settings.save_settings({"language": "ru"})
 
-    assert app_settings.load_settings() == {"language": "ru"}
+    assert app_settings.load_settings() == {**app_settings.DEFAULT_SETTINGS, "language": "ru"}
 
 
 def test_load_settings_returns_defaults_on_corrupt_file(tmp_path, monkeypatch):
@@ -21,4 +21,4 @@ def test_load_settings_returns_defaults_on_corrupt_file(tmp_path, monkeypatch):
     config_file.write_text("not valid json")
     monkeypatch.setattr(app_settings, "CONFIG_FILE", config_file)
 
-    assert app_settings.load_settings() == {"language": "auto"}
+    assert app_settings.load_settings() == app_settings.DEFAULT_SETTINGS

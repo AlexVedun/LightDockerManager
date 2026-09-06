@@ -6,7 +6,7 @@ from connection.manager import ConnectionManager
 
 def test_connect_local_sets_client_and_mode(monkeypatch):
     fake_client = MagicMock()
-    monkeypatch.setattr(manager_module.docker, "from_env", lambda: fake_client)
+    monkeypatch.setattr(manager_module.docker, "from_env", lambda timeout=None: fake_client)
 
     cm = ConnectionManager()
     cm.connect_local()
@@ -18,7 +18,7 @@ def test_connect_local_sets_client_and_mode(monkeypatch):
 
 
 def test_connect_local_failure_clears_state(monkeypatch):
-    def boom():
+    def boom(timeout=None):
         raise ConnectionError("no daemon")
 
     monkeypatch.setattr(manager_module.docker, "from_env", boom)
@@ -38,7 +38,7 @@ def test_connect_remote_builds_ssh_url(monkeypatch):
     fake_client = MagicMock()
     captured = {}
 
-    def fake_docker_client(base_url, use_ssh_client):
+    def fake_docker_client(base_url, use_ssh_client, timeout=None):
         captured["base_url"] = base_url
         captured["use_ssh_client"] = use_ssh_client
         return fake_client
@@ -57,7 +57,7 @@ def test_connect_remote_builds_ssh_url(monkeypatch):
 def test_connect_remote_defaults_port_22(monkeypatch):
     captured = {}
 
-    def fake_docker_client(base_url, use_ssh_client):
+    def fake_docker_client(base_url, use_ssh_client, timeout=None):
         captured["base_url"] = base_url
         return MagicMock()
 
