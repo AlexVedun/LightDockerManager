@@ -2,6 +2,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -10,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app_settings import load_settings, save_settings
+from app_settings import DEFAULT_REFRESH_INTERVAL_SECONDS, load_settings, save_settings
 from connection.profiles import load_profiles
 from docker_services.events_listener import DockerEventsListener
 from ui.dialogs.connection_dialog import ManageConnectionsDialog
@@ -21,7 +22,8 @@ from ui.tables.volumes_table import VolumesTab
 from ui.volume_transfer_window import VolumeTransferWindow
 from workers.task_worker import run_task
 
-FULL_REFRESH_INTERVAL_MS = 10000
+MIN_REFRESH_INTERVAL_SECONDS = 5
+MAX_REFRESH_INTERVAL_SECONDS = 3600
 EVENTS_RETRY_DELAY_MS = 3000
 TRANSIENT_MESSAGE_MS = 6000
 LOCAL_ITEM_DATA = {"type": "local"}
@@ -76,7 +78,7 @@ class MainWindow(QMainWindow):
 
         self.refresh_timer = QTimer(self)
         self.refresh_timer.timeout.connect(self._refresh_all)
-        self.refresh_timer.start(FULL_REFRESH_INTERVAL_MS)
+        self.refresh_timer.start(self._refresh_interval_ms())
 
         self._update_status()
         self._start_events_listener()
@@ -94,6 +96,9 @@ class MainWindow(QMainWindow):
             action.setChecked(code == current_language)
             action.triggered.connect(lambda checked, c=code: self._set_language(c))
 
+        refresh_action = settings_menu.addAction(self.tr("Refresh Interval..."))
+        refresh_action.triggered.connect(self._set_refresh_interval)
+
         tools_menu = self.menuBar().addMenu(self.tr("Tools"))
         transfer_action = tools_menu.addAction(self.tr("Volume Transfer..."))
         transfer_action.triggered.connect(self._open_volume_transfer)
@@ -107,6 +112,28 @@ class MainWindow(QMainWindow):
             self.tr("Language"),
             self.tr("Restart LightDockerManager for the language change to take effect."),
         )
+
+    def _refresh_interval_ms(self):
+        settings = load_settings()
+        seconds = settings.get("refresh_interval_seconds", DEFAULT_REFRESH_INTERVAL_SECONDS)
+        return seconds * 1000
+
+    def _set_refresh_interval(self):
+        settings = load_settings()
+        current = settings.get("refresh_interval_seconds", DEFAULT_REFRESH_INTERVAL_SECONDS)
+        seconds, ok = QInputDialog.getInt(
+            self,
+            self.tr("Refresh Interval"),
+            self.tr("Full refresh every (seconds):"),
+            current,
+            MIN_REFRESH_INTERVAL_SECONDS,
+            MAX_REFRESH_INTERVAL_SECONDS,
+        )
+        if not ok:
+            return
+        settings["refresh_interval_seconds"] = seconds
+        save_settings(settings)
+        self.refresh_timer.setInterval(seconds * 1000)
 
     def _open_volume_transfer(self):
         window = VolumeTransferWindow(self)

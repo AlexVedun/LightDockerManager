@@ -5,7 +5,8 @@ CONFIG_DIR = Path.home() / ".config" / "LightDockerManager"
 CONFIG_FILE = CONFIG_DIR / "settings.json"
 
 SUPPORTED_LANGUAGES = ("en", "ru", "uk")
-DEFAULT_SETTINGS = {"language": "auto"}
+DEFAULT_REFRESH_INTERVAL_SECONDS = 60
+DEFAULT_SETTINGS = {"language": "auto", "refresh_interval_seconds": DEFAULT_REFRESH_INTERVAL_SECONDS}
 
 
 def load_settings():
