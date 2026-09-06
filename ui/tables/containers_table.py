@@ -22,6 +22,7 @@ from ui.tables.base import (
     install_column_sorting,
     install_column_width_persistence,
     install_row_checkboxes,
+    install_selection_persistence,
 )
 from workers.task_worker import run_bulk_task, run_task
 
@@ -50,10 +51,11 @@ class ContainersTab(QWidget):
             lambda r: r["status"],
             lambda r: r["ports"],
         ]
+        row_key = lambda r: r["container"].id
         self.model = DictRowsTableModel(
             columns,
             accessors,
-            row_key=lambda r: r["container"].id,
+            row_key=row_key,
             color_column=BULLET_COLUMN,
             color_getter=lambda r: STATUS_COLORS.get(r["status"], DEFAULT_STATUS_COLOR),
             group_key=lambda r: r["project"],
@@ -79,6 +81,7 @@ class ContainersTab(QWidget):
             table_key="containers",
         )
         install_column_width_persistence(self.view, "containers", checkbox_column=self.model.CHECKBOX_COLUMN)
+        install_selection_persistence(self.view, self.proxy, self.model, row_key)
         self.proxy.layoutChanged.connect(self._apply_group_spans)
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))

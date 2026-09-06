@@ -23,6 +23,7 @@ from ui.tables.base import (
     install_column_sorting,
     install_column_width_persistence,
     install_row_checkboxes,
+    install_selection_persistence,
 )
 from workers.task_worker import run_bulk_task, run_task
 
@@ -64,10 +65,11 @@ class ImagesTab(QWidget):
             USED_COLUMN: lambda r: r["used"],
             CREATED_COLUMN: lambda r: r["created"] or "",
         }
+        row_key = lambda r: r["image"].id
         self.model = DictRowsTableModel(
             columns,
             accessors,
-            row_key=lambda r: r["image"].id,
+            row_key=row_key,
             color_column=USED_COLUMN,
             color_getter=_used_color,
             sort_accessors=sort_accessors,
@@ -93,6 +95,7 @@ class ImagesTab(QWidget):
             table_key="images",
         )
         install_column_width_persistence(self.view, "images", checkbox_column=self.model.CHECKBOX_COLUMN)
+        install_selection_persistence(self.view, self.proxy, self.model, row_key)
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_pull = QPushButton(self.tr("Pull"))

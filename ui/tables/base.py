@@ -1,4 +1,4 @@
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor, QFont
 
 from app_settings import load_settings, save_settings
@@ -297,6 +297,45 @@ def install_column_sorting(view, proxy, sortable_columns, checkbox_column=None, 
         _persist_sort()
 
     header.sectionClicked.connect(_on_section_clicked)
+
+
+def install_selection_persistence(view, proxy, model, row_key):
+    """Keeps the same logical row selected across `model.set_rows()` calls.
+
+    A refresh replaces the model's row list wholesale (`beginResetModel` /
+    `endResetModel`), which resets the view's selection as a side effect -
+    so without this, the highlighted row would visibly jump away on every
+    periodic/event-triggered refresh even though nothing the user cares
+    about changed. Tracks the row by `row_key` (not position), so it
+    survives the row moving to a different index across the refresh (e.g.
+    due to sorting or other rows appearing/disappearing).
+    """
+    state = {"key": None}
+
+    def _capture():
+        indexes = view.selectionModel().selectedRows()
+        if not indexes:
+            state["key"] = None
+            return
+        row = model.row_at(proxy.mapToSource(indexes[0]).row())
+        state["key"] = row_key(row) if row is not None else None
+
+    def _restore():
+        if state["key"] is None:
+            return
+        for proxy_row in range(proxy.rowCount()):
+            source_row = proxy.mapToSource(proxy.index(proxy_row, 0)).row()
+            row = model.row_at(source_row)
+            if row is not None and row_key(row) == state["key"]:
+                index = proxy.index(proxy_row, 0)
+                view.selectionModel().select(
+                    index, QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows
+                )
+                view.selectionModel().setCurrentIndex(index, QItemSelectionModel.NoUpdate)
+                return
+
+    model.modelAboutToBeReset.connect(_capture)
+    model.modelReset.connect(_restore)
 
 
 def install_column_width_persistence(view, table_key, checkbox_column=None):

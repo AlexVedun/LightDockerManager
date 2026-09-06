@@ -22,6 +22,7 @@ from ui.tables.base import (
     install_column_sorting,
     install_column_width_persistence,
     install_row_checkboxes,
+    install_selection_persistence,
 )
 from ui.volume_transfer_window import VolumeTransferWindow
 from workers.task_worker import run_bulk_task, run_task
@@ -62,10 +63,11 @@ class VolumesTab(QWidget):
             USED_COLUMN: lambda r: r["used"],
             SIZE_COLUMN: lambda r: r["size"] if r["size"] is not None else -1,
         }
+        row_key = lambda r: r["name"]
         self.model = DictRowsTableModel(
             columns,
             accessors,
-            row_key=lambda r: r["name"],
+            row_key=row_key,
             color_column=USED_COLUMN,
             color_getter=_used_color,
             sort_accessors=sort_accessors,
@@ -91,6 +93,7 @@ class VolumesTab(QWidget):
             table_key="volumes",
         )
         install_column_width_persistence(self.view, "volumes", checkbox_column=self.model.CHECKBOX_COLUMN)
+        install_selection_persistence(self.view, self.proxy, self.model, row_key)
 
         self.btn_refresh = QPushButton(self.tr("Refresh"))
         self.btn_remove = QPushButton(self.tr("Remove"))
