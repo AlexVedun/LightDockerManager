@@ -41,32 +41,32 @@
     <message>
         <location filename="../ui/tables/containers_table.py" line="88"/>
         <source>Start</source>
-        <translation>Start</translation>
+        <translation>Запустить</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="89"/>
         <source>Stop</source>
-        <translation>Stop</translation>
+        <translation>Остановить</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="90"/>
         <source>Restart</source>
-        <translation>Restart</translation>
+        <translation>Перезапустить</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="91"/>
         <source>Pause</source>
-        <translation>Pause</translation>
+        <translation>Приостановить</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="92"/>
         <source>Unpause</source>
-        <translation>Unpause</translation>
+        <translation>Возобновить</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="93"/>
         <source>Remove</source>
-        <translation>Remove</translation>
+        <translation>Удалить</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="94"/>
@@ -76,7 +76,7 @@
     <message>
         <location filename="../ui/tables/containers_table.py" line="95"/>
         <source>Inspect</source>
-        <translation>Inspect</translation>
+        <translation>Инспектировать</translation>
     </message>
     <message>
         <location filename="../ui/tables/containers_table.py" line="160"/>
@@ -107,7 +107,7 @@
     <message>
         <location filename="../ui/tables/containers_table.py" line="225"/>
         <source>Inspect: {name}</source>
-        <translation>Inspect: {name}</translation>
+        <translation>Инспектировать: {name}</translation>
     </message>
 </context>
 <context>
@@ -146,12 +146,12 @@
     <message>
         <location filename="../ui/tables/images_table.py" line="50"/>
         <source>Repository:Tag</source>
-        <translation>Repository:Tag</translation>
+        <translation>Репозиторий:Тег</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="51"/>
         <source>Image ID</source>
-        <translation>Image ID</translation>
+        <translation>ID образа</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="52"/>
@@ -186,22 +186,22 @@
     <message>
         <location filename="../ui/tables/images_table.py" line="101"/>
         <source>Pull</source>
-        <translation>Pull</translation>
+        <translation>Загрузить</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="102"/>
         <source>Remove</source>
-        <translation>Remove</translation>
+        <translation>Удалить</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="103"/>
         <source>Inspect</source>
-        <translation>Inspect</translation>
+        <translation>Инспектировать</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="104"/>
         <source>Prune</source>
-        <translation>Prune</translation>
+        <translation>Очистить</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="145"/>
@@ -242,7 +242,7 @@
     <message>
         <location filename="../ui/tables/images_table.py" line="212"/>
         <source>Inspect: {tags}</source>
-        <translation>Inspect: {tags}</translation>
+        <translation>Инспектировать: {tags}</translation>
     </message>
     <message>
         <location filename="../ui/tables/images_table.py" line="221"/>
@@ -293,7 +293,7 @@
     <message>
         <location filename="../ui/main_window.py" line="70"/>
         <source>Volumes</source>
-        <translation>Volumes</translation>
+        <translation>Тома</translation>
     </message>
     <message>
         <location filename="../ui/main_window.py" line="71"/>
@@ -406,7 +406,7 @@
     <message>
         <location filename="../ui/dialogs/connection_dialog.py" line="71"/>
         <source>Remove</source>
-        <translation>Remove</translation>
+        <translation>Удалить</translation>
     </message>
     <message>
         <location filename="../ui/dialogs/connection_dialog.py" line="121"/>
@@ -429,12 +429,12 @@
     <message>
         <location filename="../ui/tables/networks_table.py" line="49"/>
         <source>Driver</source>
-        <translation>Driver</translation>
+        <translation>Драйвер</translation>
     </message>
     <message>
         <location filename="../ui/tables/networks_table.py" line="50"/>
         <source>Scope</source>
-        <translation>Scope</translation>
+        <translation>Область</translation>
     </message>
     <message>
         <location filename="../ui/tables/networks_table.py" line="51"/>
@@ -464,12 +464,12 @@
     <message>
         <location filename="../ui/tables/networks_table.py" line="97"/>
         <source>Remove</source>
-        <translation>Remove</translation>
+        <translation>Удалить</translation>
     </message>
     <message>
         <location filename="../ui/tables/networks_table.py" line="98"/>
         <source>Inspect</source>
-        <translation>Inspect</translation>
+        <translation>Инспектировать</translation>
     </message>
     <message>
         <location filename="../ui/tables/networks_table.py" line="99"/>
@@ -484,7 +484,7 @@
     <message>
         <location filename="../ui/tables/networks_table.py" line="101"/>
         <source>Prune</source>
-        <translation>Prune</translation>
+        <translation>Очистить</translation>
     </message>
     <message>
         <location filename="../ui/tables/networks_table.py" line="150"/>
@@ -515,7 +515,7 @@
     <message>
         <location filename="../ui/tables/networks_table.py" line="201"/>
         <source>Inspect: {name}</source>
-        <translation>Inspect: {name}</translation>
+        <translation>Инспектировать: {name}</translation>
     </message>
     <message>
         <location filename="../ui/tables/networks_table.py" line="208"/>
@@ -768,7 +768,7 @@ If a volume with this name already exists on the destination, its contents may b
     <message>
         <location filename="../ui/tables/volumes_table.py" line="50"/>
         <source>Driver</source>
-        <translation>Driver</translation>
+        <translation>Драйвер</translation>
     </message>
     <message>
         <location filename="../ui/tables/volumes_table.py" line="51"/>
@@ -803,17 +803,17 @@ If a volume with this name already exists on the destination, its contents may b
     <message>
         <location filename="../ui/tables/volumes_table.py" line="99"/>
         <source>Remove</source>
-        <translation>Remove</translation>
+        <translation>Удалить</translation>
     </message>
     <message>
         <location filename="../ui/tables/volumes_table.py" line="100"/>
         <source>Inspect</source>
-        <translation>Inspect</translation>
+        <translation>Инспектировать</translation>
     </message>
     <message>
         <location filename="../ui/tables/volumes_table.py" line="101"/>
         <source>Prune</source>
-        <translation>Prune</translation>
+        <translation>Очистить</translation>
     </message>
     <message>
         <location filename="../ui/tables/volumes_table.py" line="102"/>
@@ -849,7 +849,7 @@ If a volume with this name already exists on the destination, its contents may b
     <message>
         <location filename="../ui/tables/volumes_table.py" line="194"/>
         <source>Inspect: {name}</source>
-        <translation>Inspect: {name}</translation>
+        <translation>Инспектировать: {name}</translation>
     </message>
     <message>
         <location filename="../ui/tables/volumes_table.py" line="203"/>
