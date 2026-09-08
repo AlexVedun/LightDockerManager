@@ -18,10 +18,12 @@ from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
+from ui.icons import standard_icon, trash_icon
 from ui.tables.base import (
     DictRowsTableModel,
     install_column_sorting,
     install_column_width_persistence,
+    install_foreground_color_delegate,
     install_row_checkboxes,
     install_selection_persistence,
 )
@@ -82,6 +84,7 @@ class NetworksTab(QWidget):
         self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
         install_row_checkboxes(self.view, self.proxy, self.model.CHECKBOX_COLUMN)
+        install_foreground_color_delegate(self.view)
         install_column_sorting(
             self.view,
             self.proxy,
@@ -93,12 +96,12 @@ class NetworksTab(QWidget):
         install_column_width_persistence(self.view, "networks", checkbox_column=self.model.CHECKBOX_COLUMN)
         install_selection_persistence(self.view, self.proxy, self.model, row_key)
 
-        self.btn_refresh = QPushButton(self.tr("Refresh"))
-        self.btn_remove = QPushButton(self.tr("Remove"))
-        self.btn_inspect = QPushButton(self.tr("Inspect"))
-        self.btn_connect = QPushButton(self.tr("Connect Container"))
-        self.btn_disconnect = QPushButton(self.tr("Disconnect Container"))
-        self.btn_prune = QPushButton(self.tr("Prune"))
+        self.btn_refresh = QPushButton(standard_icon("SP_BrowserReload"), self.tr("Refresh"))
+        self.btn_remove = QPushButton(trash_icon(), self.tr("Remove"))
+        self.btn_inspect = QPushButton(standard_icon("SP_MessageBoxInformation"), self.tr("Inspect"))
+        self.btn_connect = QPushButton(standard_icon("SP_DialogYesButton"), self.tr("Connect Container"))
+        self.btn_disconnect = QPushButton(standard_icon("SP_DialogNoButton"), self.tr("Disconnect Container"))
+        self.btn_prune = QPushButton(standard_icon("SP_DialogResetButton"), self.tr("Prune"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_remove.clicked.connect(self._remove_selected)

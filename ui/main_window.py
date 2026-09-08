@@ -15,6 +15,7 @@ from app_settings import DEFAULT_REFRESH_INTERVAL_SECONDS, load_settings, save_s
 from connection.profiles import load_profiles
 from docker_services.events_listener import DockerEventsListener
 from ui.dialogs.connection_dialog import ManageConnectionsDialog
+from ui.icons import standard_icon
 from ui.tables.containers_table import ContainersTab
 from ui.tables.images_table import ImagesTab
 from ui.tables.networks_table import NetworksTab
@@ -85,10 +86,10 @@ class MainWindow(QMainWindow):
 
     def _build_menu(self):
         settings_menu = self.menuBar().addMenu(self.tr("Settings"))
-        manage_action = settings_menu.addAction(self.tr("Connections..."))
+        manage_action = settings_menu.addAction(standard_icon("SP_DriveNetIcon"), self.tr("Connections..."))
         manage_action.triggered.connect(self._open_manage_connections)
 
-        language_menu = settings_menu.addMenu(self.tr("Language"))
+        language_menu = settings_menu.addMenu(standard_icon("SP_DesktopIcon"), self.tr("Language"))
         current_language = load_settings().get("language", "auto")
         for code, label in LANGUAGES:
             action = language_menu.addAction(label)
@@ -96,11 +97,11 @@ class MainWindow(QMainWindow):
             action.setChecked(code == current_language)
             action.triggered.connect(lambda checked, c=code: self._set_language(c))
 
-        refresh_action = settings_menu.addAction(self.tr("Refresh Interval..."))
+        refresh_action = settings_menu.addAction(standard_icon("SP_BrowserReload"), self.tr("Refresh Interval..."))
         refresh_action.triggered.connect(self._set_refresh_interval)
 
         tools_menu = self.menuBar().addMenu(self.tr("Tools"))
-        transfer_action = tools_menu.addAction(self.tr("Volume Transfer..."))
+        transfer_action = tools_menu.addAction(standard_icon("SP_ArrowRight"), self.tr("Volume Transfer..."))
         transfer_action.triggered.connect(self._open_volume_transfer)
 
     def _set_language(self, code):

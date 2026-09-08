@@ -16,11 +16,13 @@ from docker_services.common import reload_and_get_attrs
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
+from ui.icons import standard_icon, trash_icon
 from ui.tables.base import (
     DictRowsTableModel,
     GroupedSortProxyModel,
     install_column_sorting,
     install_column_width_persistence,
+    install_foreground_color_delegate,
     install_row_checkboxes,
     install_selection_persistence,
 )
@@ -30,7 +32,7 @@ BULLET_COLUMN = 0
 NAME_COLUMN = 1
 STATUS_COLUMN = 3
 STATUS_COLORS = {
-    "running": QColor("#2ecc71"),
+    "running": QColor("#e74c3c"),
     "paused": QColor("#f1c40f"),
 }
 DEFAULT_STATUS_COLOR = QColor("#95a5a6")
@@ -72,6 +74,7 @@ class ContainersTab(QWidget):
         self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
         install_row_checkboxes(self.view, self.proxy, self.model.CHECKBOX_COLUMN)
+        install_foreground_color_delegate(self.view)
         install_column_sorting(
             self.view,
             self.proxy,
@@ -84,15 +87,15 @@ class ContainersTab(QWidget):
         install_selection_persistence(self.view, self.proxy, self.model, row_key)
         self.proxy.layoutChanged.connect(self._apply_group_spans)
 
-        self.btn_refresh = QPushButton(self.tr("Refresh"))
-        self.btn_start = QPushButton(self.tr("Start"))
-        self.btn_stop = QPushButton(self.tr("Stop"))
-        self.btn_restart = QPushButton(self.tr("Restart"))
-        self.btn_pause = QPushButton(self.tr("Pause"))
-        self.btn_unpause = QPushButton(self.tr("Unpause"))
-        self.btn_remove = QPushButton(self.tr("Remove"))
-        self.btn_logs = QPushButton(self.tr("Logs"))
-        self.btn_inspect = QPushButton(self.tr("Inspect"))
+        self.btn_refresh = QPushButton(standard_icon("SP_BrowserReload"), self.tr("Refresh"))
+        self.btn_start = QPushButton(standard_icon("SP_MediaPlay"), self.tr("Start"))
+        self.btn_stop = QPushButton(standard_icon("SP_MediaStop"), self.tr("Stop"))
+        self.btn_restart = QPushButton(standard_icon("SP_BrowserReload"), self.tr("Restart"))
+        self.btn_pause = QPushButton(standard_icon("SP_MediaPause"), self.tr("Pause"))
+        self.btn_unpause = QPushButton(standard_icon("SP_MediaSeekForward"), self.tr("Unpause"))
+        self.btn_remove = QPushButton(trash_icon(), self.tr("Remove"))
+        self.btn_logs = QPushButton(standard_icon("SP_FileDialogDetailedView"), self.tr("Logs"))
+        self.btn_inspect = QPushButton(standard_icon("SP_MessageBoxInformation"), self.tr("Inspect"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_start.clicked.connect(lambda: self._run_bulk_action(containers_service.start))

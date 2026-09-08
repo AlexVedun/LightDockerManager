@@ -17,10 +17,12 @@ from docker_services.common import reload_and_get_attrs
 from docker_services.formatting import human_size, summarize_prune_result
 from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
+from ui.icons import standard_icon, trash_icon
 from ui.tables.base import (
     DictRowsTableModel,
     install_column_sorting,
     install_column_width_persistence,
+    install_foreground_color_delegate,
     install_row_checkboxes,
     install_selection_persistence,
 )
@@ -84,6 +86,7 @@ class VolumesTab(QWidget):
         self.view.horizontalHeader().resizeSection(self.model.CHECKBOX_COLUMN, 28)
         self.view.verticalHeader().setVisible(False)
         install_row_checkboxes(self.view, self.proxy, self.model.CHECKBOX_COLUMN)
+        install_foreground_color_delegate(self.view)
         install_column_sorting(
             self.view,
             self.proxy,
@@ -95,11 +98,11 @@ class VolumesTab(QWidget):
         install_column_width_persistence(self.view, "volumes", checkbox_column=self.model.CHECKBOX_COLUMN)
         install_selection_persistence(self.view, self.proxy, self.model, row_key)
 
-        self.btn_refresh = QPushButton(self.tr("Refresh"))
-        self.btn_remove = QPushButton(self.tr("Remove"))
-        self.btn_inspect = QPushButton(self.tr("Inspect"))
-        self.btn_prune = QPushButton(self.tr("Prune"))
-        self.btn_transfer = QPushButton(self.tr("Transfer to another host"))
+        self.btn_refresh = QPushButton(standard_icon("SP_BrowserReload"), self.tr("Refresh"))
+        self.btn_remove = QPushButton(trash_icon(), self.tr("Remove"))
+        self.btn_inspect = QPushButton(standard_icon("SP_MessageBoxInformation"), self.tr("Inspect"))
+        self.btn_prune = QPushButton(standard_icon("SP_DialogResetButton"), self.tr("Prune"))
+        self.btn_transfer = QPushButton(standard_icon("SP_ArrowRight"), self.tr("Transfer to another host"))
 
         self.btn_refresh.clicked.connect(self.refresh)
         self.btn_remove.clicked.connect(self._remove_selected)

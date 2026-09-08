@@ -19,6 +19,7 @@ from connection.profiles import load_profiles
 from docker_services.formatting import human_size
 from docker_services.volume_transfer import transfer_volume
 from ui.dialogs.confirm_dialog import confirm
+from ui.icons import standard_icon
 from workers.task_worker import run_task
 
 class TransferWorker(QThread):
@@ -167,7 +168,7 @@ class VolumeTransferWindow(QDialog):
         self.dest_name_edit = QLineEdit(self)
         self.dest_name_edit.setPlaceholderText(self.tr("Volume name on destination (defaults to source name)"))
 
-        self.btn_transfer = QPushButton(self.tr("Transfer"))
+        self.btn_transfer = QPushButton(standard_icon("SP_ArrowRight"), self.tr("Transfer"))
         self.btn_transfer.clicked.connect(self._start_transfer)
 
         # The transfer measures the volume's on-disk size upfront (via `du`

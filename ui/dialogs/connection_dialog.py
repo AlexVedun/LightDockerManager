@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from connection.profiles import load_profiles, save_profiles
+from ui.icons import standard_icon, trash_icon
 
 
 class ProfileEditDialog(QDialog):
@@ -66,9 +67,9 @@ class ManageConnectionsDialog(QDialog):
         self.list_widget = QListWidget(self)
         self._reload_list()
 
-        self.btn_add = QPushButton(self.tr("Add"))
-        self.btn_edit = QPushButton(self.tr("Edit"))
-        self.btn_remove = QPushButton(self.tr("Remove"))
+        self.btn_add = QPushButton(standard_icon("SP_FileDialogNewFolder"), self.tr("Add"))
+        self.btn_edit = QPushButton(standard_icon("SP_FileDialogContentsView"), self.tr("Edit"))
+        self.btn_remove = QPushButton(trash_icon(), self.tr("Remove"))
 
         self.btn_add.clicked.connect(self._add_profile)
         self.btn_edit.clicked.connect(self._edit_profile)

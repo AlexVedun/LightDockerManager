@@ -1,5 +1,6 @@
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtWidgets import QStyledItemDelegate
 
 from app_settings import load_settings, save_settings
 
@@ -229,6 +230,29 @@ class GroupedSortProxyModel(QSortFilterProxyModel):
         if left_value is None or right_value is None:
             return False
         return left_value < right_value
+
+
+class _ForegroundPreservingDelegate(QStyledItemDelegate):
+    """Makes a cell's Qt.ForegroundRole color survive row selection.
+
+    Qt's item views normally swap the text color to the palette's
+    HighlightedText role for a selected row, ignoring whatever a model
+    returned for Qt.ForegroundRole - which is why a colored status dot
+    (e.g. the running/paused indicator) turns plain white the moment its
+    row gets selected. Forcing HighlightedText to match here keeps it its
+    actual color regardless of selection.
+    """
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        color = index.data(Qt.ForegroundRole)
+        if color is not None:
+            option.palette.setColor(QPalette.HighlightedText, color)
+
+
+def install_foreground_color_delegate(view):
+    """Keeps model-provided ForegroundRole colors visible even when a row is selected."""
+    view.setItemDelegate(_ForegroundPreservingDelegate(view))
 
 
 def install_row_checkboxes(view, proxy, checkbox_column):
