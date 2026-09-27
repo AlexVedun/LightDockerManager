@@ -24,7 +24,9 @@ from workers.task_worker import run_task
 
 class TransferWorker(QThread):
     log_message = Signal(str)
-    progress = Signal(int, object)  # transferred, total (int or None if unmeasured)
+    # Qt's `int` signal type is signed 32-bit and wraps after 2 GiB. Use
+    # Python objects so byte counters retain Python's arbitrary precision.
+    progress = Signal(object, object)  # transferred, total (int or None if unmeasured)
     finished_ok = Signal()
     failed = Signal(str)
 
