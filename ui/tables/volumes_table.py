@@ -143,7 +143,7 @@ class VolumesTab(QWidget):
 
     def _on_refresh_failed(self, message):
         self._refreshing = False
-        QMessageBox.critical(self, self.tr("Docker Error"), message)
+        self._notify(message)
 
     def _selected_row(self):
         indexes = self.view.selectionModel().selectedRows()
