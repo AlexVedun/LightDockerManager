@@ -1,0 +1,164 @@
+name: Build release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version used in artifact file names
+        required: true
+        default: dev
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  RELEASE_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q
+
+  linux:
+    name: Linux AppImage
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Download appimagetool
+        run: |
+          curl --fail --location \
+            --output "$RUNNER_TEMP/appimagetool-x86_64.AppImage" \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool-x86_64.AppImage"
+
+      - name: Build AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          APPIMAGETOOL: ${{ runner.temp }}/appimagetool-x86_64.AppImage
+          PYTHON: python
+          VERSION: ${{ env.RELEASE_VERSION }}
+        run: packaging/build_appimage.sh
+
+      - name: Store AppImage as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: distribution/*.AppImage
+          if-no-files-found: error
+
+      - name: Attach AppImage to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" distribution/*.AppImage --clobber
+
+  windows:
+    name: Windows EXE
+    needs: test
+    runs-on: windows-2022
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build EXE
+        env:
+          VERSION: ${{ env.RELEASE_VERSION }}
+        shell: pwsh
+        run: ./packaging/build_windows.ps1
+
+      - name: Store EXE as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: distribution/*.exe
+          if-no-files-found: error
+
+      - name: Attach EXE to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: pwsh
+        run: |
+          $Asset = Get-ChildItem distribution -Filter *.exe | Select-Object -First 1 -ExpandProperty FullName
+          gh release upload $env:RELEASE_TAG $Asset --clobber
+
+  macos:
+    name: macOS DMG
+    needs: test
+    runs-on: macos-15-intel
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build DMG
+        env:
+          ARCH_LABEL: x86_64
+          PYTHON: python
+          VERSION: ${{ env.RELEASE_VERSION }}
+        run: packaging/build_dmg.sh
+
+      - name: Store DMG as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: distribution/*.dmg
+          if-no-files-found: error
+
+      - name: Attach DMG to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" distribution/*.dmg --clobber

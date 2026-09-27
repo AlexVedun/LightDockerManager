@@ -7,7 +7,8 @@ cd "$PROJECT_ROOT"
 
 PYTHON="${PYTHON:-.venv/bin/python}"
 
-VERSION="$("$PYTHON" -c 'from version import __version__; print(__version__)')"
+VERSION="${VERSION:-$("$PYTHON" -c 'from version import __version__; print(__version__)')}"
+VERSION="${VERSION#v}"
 
 resolve_appimagetool() {
     if [ -n "${APPIMAGETOOL:-}" ]; then
@@ -37,7 +38,7 @@ echo "Using appimagetool: $APPIMAGETOOL"
 
 DIST_DIR="$PROJECT_ROOT/distribution"
 
-rm -rf build dist AppDir "$DIST_DIR"
+rm -rf build dist AppDir
 mkdir -p "$DIST_DIR"
 
 "$PYTHON" -m PyInstaller \
@@ -62,6 +63,7 @@ chmod +x AppDir/AppRun
 
 OUTPUT_FILE="$DIST_DIR/LightDockerManager-$VERSION-x86_64.AppImage"
 
+rm -f "$OUTPUT_FILE"
 "$APPIMAGETOOL" AppDir "$OUTPUT_FILE"
 rm -rf build dist AppDir
 

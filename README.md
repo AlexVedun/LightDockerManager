@@ -46,11 +46,24 @@ A Linux AppImage can be built with:
 packaging/build_appimage.sh
 ```
 
-Windows/macOS builds use the PyInstaller spec file:
+The PyInstaller spec file produces a basic one-directory build:
 
 ```bash
 pyinstaller LightDockerManager.spec
 ```
+
+Platform-specific release packages can be built with:
+
+```bash
+packaging/build_appimage.sh
+pwsh packaging/build_windows.ps1
+packaging/build_dmg.sh
+```
+
+Publishing a GitHub Release automatically runs the release workflow and
+attaches Linux AppImage, Windows EXE, and macOS DMG files to it. The same
+workflow can be started manually from the Actions tab to test all builds
+without modifying a release.
 
 ## License
 
