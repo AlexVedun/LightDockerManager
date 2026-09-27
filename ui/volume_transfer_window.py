@@ -1,10 +1,14 @@
+from pathlib import Path
+
 import docker
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -17,12 +21,18 @@ from PySide6.QtWidgets import (
 from connection.manager import CLIENT_TIMEOUT_SECONDS
 from connection.profiles import load_profiles
 from docker_services.formatting import human_size
-from docker_services.volume_transfer import transfer_volume
+from docker_services.volume_transfer import export_volume, import_volume, transfer_volume
 from ui.dialogs.confirm_dialog import confirm
 from ui.icons import standard_icon
 from workers.task_worker import run_task
 
-class TransferWorker(QThread):
+
+def _volume_name_from_archive(file_path):
+    name = Path(file_path).name
+    return name[:-4] if name.lower().endswith(".tar") else name
+
+
+class VolumeOperationWorker(QThread):
     log_message = Signal(str)
     # Qt's `int` signal type is signed 32-bit and wraps after 2 GiB. Use
     # Python objects so byte counters retain Python's arbitrary precision.
@@ -30,27 +40,29 @@ class TransferWorker(QThread):
     finished_ok = Signal()
     failed = Signal(str)
 
-    def __init__(self, source_client, source_volume, dest_client, dest_volume):
+    def __init__(self, operation, *args, **kwargs):
         super().__init__()
-        self.source_client = source_client
-        self.source_volume = source_volume
-        self.dest_client = dest_client
-        self.dest_volume = dest_volume
+        self.operation = operation
+        self.args = args
+        self.kwargs = kwargs
 
     def run(self):
         try:
-            transfer_volume(
-                self.source_client,
-                self.source_volume,
-                self.dest_client,
-                self.dest_volume,
+            self.operation(
+                *self.args,
                 log=self.log_message.emit,
                 progress=self.progress.emit,
+                **self.kwargs,
             )
         except Exception as exc:
             self.failed.emit(str(exc))
             return
         self.finished_ok.emit()
+
+
+class TransferWorker(VolumeOperationWorker):
+    def __init__(self, source_client, source_volume, dest_client, dest_volume):
+        super().__init__(transfer_volume, source_client, source_volume, dest_client, dest_volume)
 
 
 class HostPicker(QGroupBox):
@@ -152,6 +164,23 @@ class HostPicker(QGroupBox):
     def selected_host_label(self):
         return self.combo.currentText()
 
+    def volume_names(self):
+        data = self.combo.currentData()
+        if data is None:
+            return set()
+        cached = self._client_cache.get(self._cache_key(data))
+        return set(cached["volumes"]) if cached else set()
+
+    def remember_volume(self, name):
+        data = self.combo.currentData()
+        if data is None:
+            return
+        cached = self._client_cache.get(self._cache_key(data))
+        if cached is None or name in cached["volumes"]:
+            return
+        cached["volumes"].append(name)
+        self.volume_combo.addItem(name)
+
 
 class VolumeTransferWindow(QDialog):
     def __init__(self, parent=None):
@@ -172,6 +201,15 @@ class VolumeTransferWindow(QDialog):
 
         self.btn_transfer = QPushButton(standard_icon("SP_ArrowRight"), self.tr("Transfer"))
         self.btn_transfer.clicked.connect(self._start_transfer)
+        self.btn_export = QPushButton(standard_icon("SP_DialogSaveButton"), self.tr("Export..."))
+        self.btn_export.clicked.connect(self._start_export)
+        self.btn_import = QPushButton(standard_icon("SP_DialogOpenButton"), self.tr("Import..."))
+        self.btn_import.clicked.connect(self._start_import)
+
+        actions_row = QHBoxLayout()
+        actions_row.addWidget(self.btn_transfer)
+        actions_row.addWidget(self.btn_export)
+        actions_row.addWidget(self.btn_import)
 
         # The transfer measures the volume's on-disk size upfront (via `du`
         # inside the helper container) to drive a real percentage; if that
@@ -192,7 +230,7 @@ class VolumeTransferWindow(QDialog):
         layout.addLayout(pickers_row)
         layout.addWidget(QLabel(self.tr("Volume name on destination:")))
         layout.addWidget(self.dest_name_edit)
-        layout.addWidget(self.btn_transfer)
+        layout.addLayout(actions_row)
         layout.addWidget(self.progress_bar)
         layout.addWidget(self.progress_label)
         layout.addWidget(self.log_view)
@@ -233,14 +271,126 @@ class VolumeTransferWindow(QDialog):
         ):
             return
 
-        self.btn_transfer.setEnabled(False)
+        self._run_operation(
+            TransferWorker(source_client, source_volume, dest_client, dest_volume),
+            self.tr("Transfer completed successfully."),
+            self.tr("Transfer Error"),
+        )
+
+    def _start_export(self):
+        client = self.source_picker.selected_client()
+        volume_name = self.source_picker.selected_volume()
+        if client is None:
+            QMessageBox.warning(
+                self,
+                self.tr("Volume Export"),
+                self.tr("Still connecting to the selected host, please try again shortly."),
+            )
+            return
+        if not volume_name:
+            QMessageBox.warning(self, self.tr("Volume Export"), self.tr("Please select a source volume."))
+            return
+
+        file_path, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            self.tr("Export Volume"),
+            f"{volume_name}.tar",
+            self.tr("Tar archives (*.tar);;All files (*)"),
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".tar"):
+            file_path += ".tar"
+
+        self._run_operation(
+            VolumeOperationWorker(export_volume, client, volume_name, file_path),
+            self.tr("Export completed successfully."),
+            self.tr("Export Error"),
+        )
+
+    def _start_import(self):
+        client = self.dest_picker.selected_client()
+        if client is None:
+            QMessageBox.warning(
+                self,
+                self.tr("Volume Import"),
+                self.tr("Still connecting to the selected host, please try again shortly."),
+            )
+            return
+
+        file_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            self.tr("Import Volume"),
+            "",
+            self.tr("Tar archives (*.tar);;All files (*)"),
+        )
+        if not file_path:
+            return
+
+        volume_name = _volume_name_from_archive(file_path)
+        if not volume_name:
+            QMessageBox.warning(
+                self,
+                self.tr("Volume Import"),
+                self.tr("Could not determine a volume name from the selected file."),
+            )
+            return
+
+        resolved = self._resolve_import_destination(volume_name)
+        if resolved is None:
+            return
+        volume_name, overwrite = resolved
+        self._run_operation(
+            VolumeOperationWorker(import_volume, client, volume_name, file_path, overwrite=overwrite),
+            self.tr("Import completed successfully."),
+            self.tr("Import Error"),
+            on_success=lambda: self.dest_picker.remember_volume(volume_name),
+        )
+
+    def _resolve_import_destination(self, volume_name):
+        while volume_name in self.dest_picker.volume_names():
+            answer = QMessageBox.question(
+                self,
+                self.tr("Volume Import"),
+                self.tr('Volume "{name}" already exists.\n\nOverwrite?').format(name=volume_name),
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer == QMessageBox.Yes:
+                return volume_name, True
+
+            while True:
+                volume_name, accepted = QInputDialog.getText(
+                    self,
+                    self.tr("Volume Import"),
+                    self.tr("New volume name:"),
+                    text=volume_name,
+                )
+                if not accepted:
+                    return None
+                volume_name = volume_name.strip()
+                if volume_name:
+                    break
+                QMessageBox.warning(
+                    self,
+                    self.tr("Volume Import"),
+                    self.tr("Volume name cannot be empty."),
+                )
+        return volume_name, False
+
+    def _run_operation(self, worker, success_message, error_title, on_success=None):
+        for button in (self.btn_transfer, self.btn_export, self.btn_import):
+            button.setEnabled(False)
         self.log_view.clear()
         self.progress_bar.setRange(0, 0)
         self.progress_label.setText(self.tr("Transferred: 0 B"))
         self.progress_bar.show()
         self.progress_label.show()
 
-        self.worker = TransferWorker(source_client, source_volume, dest_client, dest_volume)
+        self._success_message = success_message
+        self._error_title = error_title
+        self._operation_success_callback = on_success
+        self.worker = worker
         self.worker.log_message.connect(self.log_view.appendPlainText)
         self.worker.progress.connect(self._on_progress)
         self.worker.finished_ok.connect(self._on_finished_ok)
@@ -259,28 +409,32 @@ class VolumeTransferWindow(QDialog):
             self.progress_label.setText(self.tr("Transferred: {size}").format(size=human_size(transferred)))
 
     def _on_finished_ok(self):
-        self.btn_transfer.setEnabled(True)
+        for button in (self.btn_transfer, self.btn_export, self.btn_import):
+            button.setEnabled(True)
         self.progress_bar.hide()
-        QMessageBox.information(self, self.tr("Volume Transfer"), self.tr("Transfer completed successfully."))
+        if self._operation_success_callback is not None:
+            self._operation_success_callback()
+        QMessageBox.information(self, self.tr("Volume Transfer"), self._success_message)
 
     def _on_failed(self, message):
-        self.btn_transfer.setEnabled(True)
+        for button in (self.btn_transfer, self.btn_export, self.btn_import):
+            button.setEnabled(True)
         self.progress_bar.hide()
         self.log_view.appendPlainText(self.tr("[Error] {message}").format(message=message))
-        QMessageBox.critical(self, self.tr("Transfer Error"), message)
+        QMessageBox.critical(self, self._error_title, message)
 
     def closeEvent(self, event):
         if self.worker is not None and self.worker.isRunning():
-            # There is no way to safely cancel a transfer mid-flight (the
+            # There is no way to safely cancel an operation mid-flight (the
             # blocking archive read/write can't be interrupted from here),
             # and destroying this window while its QThread is still running
             # would tear the thread down mid-run - so the window simply
-            # can't be closed until the transfer finishes or fails on its
+            # can't be closed until the operation finishes or fails on its
             # own.
             QMessageBox.information(
                 self,
                 self.tr("Volume Transfer"),
-                self.tr("A transfer is still running. Please wait for it to finish or fail before closing."),
+                self.tr("A volume operation is still running. Please wait for it to finish or fail before closing."),
             )
             event.ignore()
             return
