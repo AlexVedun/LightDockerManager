@@ -61,7 +61,7 @@ packaging/build_dmg.sh
 ```
 
 Publishing a GitHub Release automatically runs the release workflow and
-attaches Linux AppImage, Windows EXE, and macOS DMG files to it. The same
+attaches Linux AppImage, Windows EXE, and macOS Apple Silicon DMG files to it. The same
 workflow can be started manually from the Actions tab to test all builds
 without modifying a release.
 

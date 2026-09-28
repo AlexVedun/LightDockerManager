@@ -136,9 +136,9 @@ jobs:
           gh release upload $env:RELEASE_TAG $Asset --clobber
 
   macos:
-    name: macOS DMG
+    name: macOS Apple Silicon DMG
     needs: test
-    runs-on: macos-15-intel
+    runs-on: macos-15
     steps:
       - name: Check out source
         uses: actions/checkout@v6
@@ -154,7 +154,7 @@ jobs:
 
       - name: Build DMG
         env:
-          ARCH_LABEL: x86_64
+          ARCH_LABEL: arm64
           PYTHON: python
           VERSION: ${{ env.RELEASE_VERSION }}
         run: packaging/build_dmg.sh
