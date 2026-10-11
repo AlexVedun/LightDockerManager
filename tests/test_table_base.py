@@ -1,8 +1,16 @@
+from types import SimpleNamespace
+
 from PySide6.QtCore import QSortFilterProxyModel, Qt
-from PySide6.QtWidgets import QApplication, QTableView
+from PySide6.QtWidgets import QApplication, QMenu, QPushButton, QTableView
 
 import app_settings
-from ui.tables.base import DictRowsTableModel, install_column_sorting, install_column_width_persistence
+from ui.tables.base import (
+    DictRowsTableModel,
+    install_column_sorting,
+    install_column_width_persistence,
+    install_row_context_menu,
+)
+from ui.tables.containers_table import ContainersTab
 
 QApplication.instance() or QApplication([])
 
@@ -81,3 +89,57 @@ def test_install_column_width_persistence_skips_checkbox_and_last_column(tmp_pat
 
     settings = app_settings.load_settings()
     assert settings.get("table_column_widths", {}).get("widgets", {}) == {}
+
+
+def test_context_menu_acts_on_clicked_row_even_when_another_is_checked(monkeypatch):
+    view, proxy, model = _make_view()
+    model.setData(model.index(0, 0), Qt.Checked, Qt.CheckStateRole)
+    button = QPushButton("Remove")
+    clicked_rows = []
+    button.clicked.connect(lambda: clicked_rows.append(view.selectionModel().selectedRows()[0].row()))
+    install_row_context_menu(view, proxy, model, (button,), lambda row, action: action())
+    monkeypatch.setattr(QMenu, "popup", lambda menu, position: menu.actions()[0].trigger())
+    view.resize(400, 200)
+    view.show()
+    QApplication.processEvents()
+
+    position = view.visualRect(proxy.index(1, 1)).center()
+    view.customContextMenuRequested.emit(position)
+
+    assert clicked_rows == [1]
+    assert [row["name"] for row in model.checked_rows()] == ["b"]
+
+
+def test_context_action_ignores_bulk_checkboxes():
+    tab = ContainersTab(SimpleNamespace(client=None))
+    first = {"name": "first", "container": SimpleNamespace(id="first"), "project": "", "status": "running"}
+    second = {"name": "second", "container": SimpleNamespace(id="second"), "project": "", "status": "running"}
+    tab.model.set_rows([first, second])
+    tab.model.setData(tab.model.index(1, 0), Qt.Checked, Qt.CheckStateRole)
+    targets = []
+
+    tab._run_context_action(first, lambda: targets.extend(tab._target_rows()))
+
+    assert targets == [first]
+    assert tab._context_row is None
+
+
+def test_context_bulk_action_preserves_other_checked_rows(monkeypatch):
+    tab = ContainersTab(SimpleNamespace(client=None))
+    first = {"name": "first", "container": SimpleNamespace(id="first"), "project": "", "status": "running"}
+    second = {"name": "second", "container": SimpleNamespace(id="second"), "project": "", "status": "running"}
+    tab.model.set_rows([first, second])
+    tab.model.setData(tab.model.index(2, 0), Qt.Checked, Qt.CheckStateRole)
+    acted_on = []
+
+    def run_bulk(owner, tasks, finished):
+        for task in tasks:
+            task()
+        finished([], [])
+
+    monkeypatch.setattr("ui.tables.containers_table.run_bulk_task", run_bulk)
+    monkeypatch.setattr(tab, "refresh", lambda: None)
+    tab._run_context_action(first, lambda: tab._run_bulk_action(lambda container: acted_on.append(container.id)))
+
+    assert acted_on == ["first"]
+    assert tab.model.checked_rows() == [second]

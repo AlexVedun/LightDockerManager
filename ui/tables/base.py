@@ -1,6 +1,6 @@
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QColor, QFont, QPalette
-from PySide6.QtWidgets import QStyledItemDelegate
+from PySide6.QtWidgets import QMenu, QStyledItemDelegate
 
 from app_settings import load_settings, save_settings
 
@@ -271,6 +271,30 @@ def install_row_checkboxes(view, proxy, checkbox_column):
         proxy.setData(index, new_state, Qt.CheckStateRole)
 
     view.clicked.connect(_on_clicked)
+
+
+def install_row_context_menu(view, proxy, model, buttons, run_for_row):
+    """Show the existing object actions for the row under the cursor."""
+    view.setContextMenuPolicy(Qt.CustomContextMenu)
+
+    def _show_menu(position):
+        index = view.indexAt(position)
+        if not index.isValid():
+            return
+        source_index = proxy.mapToSource(index)
+        row = model.row_at(source_index.row())
+        if row is None:  # Group header, not an object.
+            return
+
+        view.selectRow(index.row())
+        menu = QMenu(view)
+        for button in buttons:
+            action = menu.addAction(button.icon(), button.text())
+            action.triggered.connect(lambda checked=False, b=button: run_for_row(row, b.click))
+        menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(view.viewport().mapToGlobal(position))
+
+    view.customContextMenuRequested.connect(_show_menu)
 
 
 def install_column_sorting(view, proxy, sortable_columns, checkbox_column=None, on_toggle_all=None, table_key=None):

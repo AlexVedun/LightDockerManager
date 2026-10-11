@@ -23,6 +23,7 @@ from ui.tables.base import (
     install_column_sorting,
     install_column_width_persistence,
     install_foreground_color_delegate,
+    install_row_context_menu,
     install_row_checkboxes,
     install_selection_persistence,
 )
@@ -45,6 +46,7 @@ class VolumesTab(QWidget):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self._refreshing = False
+        self._context_row = None
         self._notify = notify or (lambda message: None)
 
         columns = [
@@ -109,6 +111,10 @@ class VolumesTab(QWidget):
         self.btn_inspect.clicked.connect(self._show_inspect)
         self.btn_prune.clicked.connect(self._prune)
         self.btn_transfer.clicked.connect(self._open_transfer_window)
+        install_row_context_menu(
+            self.view, self.proxy, self.model,
+            (self.btn_remove, self.btn_inspect, self.btn_transfer), self._run_context_action,
+        )
 
         toolbar = QHBoxLayout()
         for btn in (self.btn_refresh, self.btn_remove, self.btn_inspect, self.btn_prune, self.btn_transfer):
@@ -146,6 +152,8 @@ class VolumesTab(QWidget):
         self._notify(message)
 
     def _selected_row(self):
+        if self._context_row is not None:
+            return self._context_row
         indexes = self.view.selectionModel().selectedRows()
         if not indexes:
             return None
@@ -153,11 +161,20 @@ class VolumesTab(QWidget):
         return self.model.row_at(source_index.row())
 
     def _target_rows(self):
+        if self._context_row is not None:
+            return [self._context_row]
         checked = self.model.checked_rows()
         if checked:
             return checked
         row = self._selected_row()
         return [row] if row is not None else []
+
+    def _run_context_action(self, row, callback):
+        self._context_row = row
+        try:
+            callback()
+        finally:
+            self._context_row = None
 
     def _on_action_failed(self, message):
         QMessageBox.critical(self, self.tr("Docker Error"), message)
@@ -167,8 +184,9 @@ class VolumesTab(QWidget):
         self._notify(message)
         self.refresh()
 
-    def _on_bulk_action_finished(self, errors, stale):
-        self.model.set_all_checked(False)
+    def _on_bulk_action_finished(self, errors, stale, clear_selection=True):
+        if clear_selection:
+            self.model.set_all_checked(False)
         if stale:
             self._notify(self.tr("%n item(s) no longer exist and were skipped.", None, len(stale)))
         if errors:
@@ -183,7 +201,8 @@ class VolumesTab(QWidget):
         if not confirm(self, self.tr("Remove Volume"), self.tr('Remove volume(s) "{names}"?').format(names=names)):
             return
         tasks = [functools.partial(volumes_service.remove, row["volume"], force=True) for row in rows]
-        run_bulk_task(self, tasks, self._on_bulk_action_finished)
+        clear_selection = self._context_row is None
+        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection))
 
     def _show_inspect(self):
         row = self._selected_row()
