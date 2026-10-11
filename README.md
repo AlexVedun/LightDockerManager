@@ -60,10 +60,12 @@ pwsh packaging/build_windows.ps1
 packaging/build_dmg.sh
 ```
 
-Publishing a GitHub Release automatically runs the release workflow and
-attaches Linux AppImage, Windows EXE, and macOS Apple Silicon DMG files to it. The same
-workflow can be started manually from the Actions tab to test all builds
-without modifying a release.
+Pushing a version tag (for example, `1.2.3`) runs tests and builds Linux
+AppImage, Windows EXE, and macOS Apple Silicon DMG files. If all builds pass,
+the workflow publishes a GitHub Release named after the tag, with automatically
+generated release notes and all three packages attached. The same workflow can
+be started manually from the Actions tab to test all builds without creating a
+release.
 
 ## License
 

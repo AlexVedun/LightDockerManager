@@ -1,8 +1,9 @@
-name: Build release
+name: Build and release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - '*.*.*'
   workflow_dispatch:
     inputs:
       version:
@@ -11,11 +12,11 @@ on:
         default: dev
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   PYTHON_VERSION: "3.12"
-  RELEASE_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
+  RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
 
 jobs:
   test:
@@ -88,13 +89,6 @@ jobs:
           path: distribution/*.AppImage
           if-no-files-found: error
 
-      - name: Attach AppImage to release
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" distribution/*.AppImage --clobber
-
   windows:
     name: Windows EXE
     needs: test
@@ -124,16 +118,6 @@ jobs:
           name: windows-exe
           path: distribution/*.exe
           if-no-files-found: error
-
-      - name: Attach EXE to release
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        shell: pwsh
-        run: |
-          $Asset = Get-ChildItem distribution -Filter *.exe | Select-Object -First 1 -ExpandProperty FullName
-          gh release upload $env:RELEASE_TAG $Asset --clobber
 
   macos:
     name: macOS Apple Silicon DMG
@@ -166,9 +150,38 @@ jobs:
           path: distribution/*.dmg
           if-no-files-found: error
 
-      - name: Attach DMG to release
-        if: github.event_name == 'release'
+  release:
+    name: Publish release
+    if: github.event_name == 'push'
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: distribution
+
+      - name: Download EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-exe
+          path: distribution
+
+      - name: Download DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-dmg
+          path: distribution
+
+      - name: Publish release with assets and generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$RELEASE_TAG" distribution/*.dmg --clobber
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            distribution/*.AppImage distribution/*.exe distribution/*.dmg \
+            --title "$RELEASE_TAG" --generate-notes --verify-tag
