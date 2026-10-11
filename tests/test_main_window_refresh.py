@@ -4,8 +4,20 @@ from PySide6.QtWidgets import QApplication, QInputDialog
 
 import app_settings
 from ui.main_window import MainWindow
+from version import __version__
 
 QApplication.instance() or QApplication([])
+
+
+def test_window_title_includes_application_version(monkeypatch):
+    monkeypatch.setattr("ui.main_window.load_profiles", lambda: [])
+    manager = SimpleNamespace(client=None, mode=None, is_connected=lambda: False)
+    window = MainWindow(manager)
+
+    try:
+        assert window.windowTitle() == f"LightDockerManager - {__version__}"
+    finally:
+        window.close()
 
 
 def test_actions_use_fast_refresh_until_all_finish(tmp_path, monkeypatch):

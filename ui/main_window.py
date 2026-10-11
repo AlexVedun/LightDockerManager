@@ -21,6 +21,7 @@ from ui.tables.images_table import ImagesTab
 from ui.tables.networks_table import NetworksTab
 from ui.tables.volumes_table import VolumesTab
 from ui.volume_transfer_window import VolumeTransferWindow
+from version import __version__
 from workers.task_worker import run_task
 
 MIN_REFRESH_INTERVAL_SECONDS = 5
@@ -37,7 +38,7 @@ class MainWindow(QMainWindow):
         self.connection_manager = connection_manager
         self.events_listener = None
 
-        self.setWindowTitle("LightDockerManager")
+        self.setWindowTitle(f"LightDockerManager - {__version__}")
         self.resize(1000, 600)
 
         self._build_menu()
