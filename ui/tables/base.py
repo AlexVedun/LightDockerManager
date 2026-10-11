@@ -1,10 +1,21 @@
-from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPalette
-from PySide6.QtWidgets import QMenu, QStyledItemDelegate
+from PySide6.QtWidgets import QMenu, QStyledItemDelegate, QWidget
 
 from app_settings import load_settings, save_settings
 
 GROUP_HEADER_BACKGROUND = QColor("#e3e8ec")
+
+
+class ActionTrackingTab(QWidget):
+    action_started = Signal()
+    action_finished = Signal()
+
+    def _finish_refresh(self):
+        self._refreshing = False
+        if self._refresh_queued:
+            self._refresh_queued = False
+            self.refresh()
 
 
 class DictRowsTableModel(QAbstractTableModel):

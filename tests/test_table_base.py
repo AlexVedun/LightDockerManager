@@ -132,7 +132,7 @@ def test_context_bulk_action_preserves_other_checked_rows(monkeypatch):
     tab.model.setData(tab.model.index(2, 0), Qt.Checked, Qt.CheckStateRole)
     acted_on = []
 
-    def run_bulk(owner, tasks, finished):
+    def run_bulk(owner, tasks, finished, track_action=False):
         for task in tasks:
             task()
         finished([], [])

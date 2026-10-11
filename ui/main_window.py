@@ -64,6 +64,10 @@ class MainWindow(QMainWindow):
             "volumes": self.volumes_tab,
             "networks": self.networks_tab,
         }
+        self._active_actions = 0
+        for tab in self._tabs_by_entity.values():
+            tab.action_started.connect(self._on_action_started)
+            tab.action_finished.connect(self._on_action_finished)
 
         tabs = QTabWidget(self)
         tabs.addTab(self.containers_tab, self.tr("Containers"))
@@ -134,10 +138,24 @@ class MainWindow(QMainWindow):
             return
         settings["refresh_interval_seconds"] = seconds
         save_settings(settings)
-        self.refresh_timer.setInterval(seconds * 1000)
+        if not self._active_actions:
+            self.refresh_timer.setInterval(seconds * 1000)
+
+    def _on_action_started(self):
+        self._active_actions += 1
+        if self._active_actions == 1:
+            self.refresh_timer.setInterval(MIN_REFRESH_INTERVAL_SECONDS * 1000)
+
+    def _on_action_finished(self):
+        self._active_actions -= 1
+        self._refresh_all()
+        if self._active_actions == 0:
+            self.refresh_timer.setInterval(self._refresh_interval_ms())
 
     def _open_volume_transfer(self):
         window = VolumeTransferWindow(self)
+        window.action_started.connect(self._on_action_started)
+        window.action_finished.connect(self._on_action_finished)
         window.exec()
         self.volumes_tab.refresh()
 

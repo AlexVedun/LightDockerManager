@@ -183,6 +183,9 @@ class HostPicker(QGroupBox):
 
 
 class VolumeTransferWindow(QDialog):
+    action_started = Signal()
+    action_finished = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Volume Transfer"))
@@ -395,6 +398,7 @@ class VolumeTransferWindow(QDialog):
         self.worker.progress.connect(self._on_progress)
         self.worker.finished_ok.connect(self._on_finished_ok)
         self.worker.failed.connect(self._on_failed)
+        self.action_started.emit()
         self.worker.start()
 
     def _on_progress(self, transferred, total):
@@ -409,6 +413,7 @@ class VolumeTransferWindow(QDialog):
             self.progress_label.setText(self.tr("Transferred: {size}").format(size=human_size(transferred)))
 
     def _on_finished_ok(self):
+        self.action_finished.emit()
         for button in (self.btn_transfer, self.btn_export, self.btn_import):
             button.setEnabled(True)
         self.progress_bar.hide()
@@ -417,6 +422,7 @@ class VolumeTransferWindow(QDialog):
         QMessageBox.information(self, self.tr("Volume Transfer"), self._success_message)
 
     def _on_failed(self, message):
+        self.action_finished.emit()
         for button in (self.btn_transfer, self.btn_export, self.btn_import):
             button.setEnabled(True)
         self.progress_bar.hide()

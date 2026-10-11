@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableView,
     QVBoxLayout,
-    QWidget,
 )
 
 from docker_services import networks as networks_service
@@ -20,6 +19,7 @@ from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.icons import standard_icon, trash_icon
 from ui.tables.base import (
+    ActionTrackingTab,
     DictRowsTableModel,
     install_column_sorting,
     install_column_width_persistence,
@@ -40,11 +40,12 @@ def _used_color(row):
     return USED_COLOR if row["used"] else UNUSED_COLOR
 
 
-class NetworksTab(QWidget):
+class NetworksTab(ActionTrackingTab):
     def __init__(self, connection_manager, parent=None, notify=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self._refreshing = False
+        self._refresh_queued = False
         self._context_row = None
         self._notify = notify or (lambda message: None)
 
@@ -141,6 +142,7 @@ class NetworksTab(QWidget):
             self.model.set_rows([])
             return
         if self._refreshing:
+            self._refresh_queued = True
             return
         self._refreshing = True
         run_task(
@@ -152,12 +154,12 @@ class NetworksTab(QWidget):
         )
 
     def _on_refresh_succeeded(self, rows):
-        self._refreshing = False
         self.model.set_rows(rows)
+        self._finish_refresh()
 
     def _on_refresh_failed(self, message):
-        self._refreshing = False
         self._notify(message)
+        self._finish_refresh()
 
     def _selected_row(self):
         if self._context_row is not None:
@@ -210,7 +212,7 @@ class NetworksTab(QWidget):
             return
         tasks = [functools.partial(networks_service.remove, row["network"]) for row in rows]
         clear_selection = self._context_row is None
-        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection))
+        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection), track_action=True)
 
     def _show_inspect(self):
         row = self._selected_row()
@@ -262,6 +264,7 @@ class NetworksTab(QWidget):
             on_success=lambda _: self.refresh(),
             on_error=self._on_action_failed,
             on_not_found=self._on_item_gone,
+            track_action=True,
         )
 
     def _disconnect_container(self):
@@ -290,6 +293,7 @@ class NetworksTab(QWidget):
             on_success=lambda _: self.refresh(),
             on_error=self._on_action_failed,
             on_not_found=self._on_item_gone,
+            track_action=True,
         )
 
     def _prune(self):
@@ -304,6 +308,7 @@ class NetworksTab(QWidget):
             client,
             on_success=self._on_prune_succeeded,
             on_error=self._on_action_failed,
+            track_action=True,
         )
 
     def _on_prune_succeeded(self, result):

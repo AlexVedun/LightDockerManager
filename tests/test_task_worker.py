@@ -1,3 +1,4 @@
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication
 
 import time
@@ -52,6 +53,11 @@ class _Owner:
     pass
 
 
+class _TrackedOwner(QObject):
+    action_started = Signal()
+    action_finished = Signal()
+
+
 def test_run_task_keeps_worker_alive_and_cleans_up_on_finish():
     owner = _Owner()
     results = []
@@ -76,6 +82,21 @@ def test_run_task_reports_error_via_on_error():
     _pump_events(worker)
 
     assert errors == ["bad"]
+
+
+def test_tracked_task_signals_start_and_finish_on_error():
+    owner = _TrackedOwner()
+    events = []
+    owner.action_started.connect(lambda: events.append("started"))
+    owner.action_finished.connect(lambda: events.append("finished"))
+
+    def fail():
+        raise RuntimeError("failed")
+
+    worker = run_task(owner, fail, track_action=True)
+    _pump_events(worker)
+
+    assert events == ["started", "finished"]
 
 
 def _pump_until(condition, timeout_s=2.0):
@@ -114,6 +135,19 @@ def test_run_bulk_task_collects_errors_but_keeps_going():
     _pump_until(lambda: finished)
 
     assert finished == [(["bad"], [])]
+
+
+def test_tracked_bulk_action_covers_all_tasks():
+    owner = _TrackedOwner()
+    events = []
+    owner.action_started.connect(lambda: events.append("started"))
+    owner.action_finished.connect(lambda: events.append("finished"))
+    tasks = [lambda: events.append("first"), lambda: events.append("second")]
+
+    run_bulk_task(owner, tasks, lambda errors, stale: events.append("callback"), track_action=True)
+    _pump_until(lambda: "finished" in events)
+
+    assert events == ["started", "first", "second", "callback", "finished"]
 
 
 def test_run_bulk_task_collects_stale_items_separately_from_errors():

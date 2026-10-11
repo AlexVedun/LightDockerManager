@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableView,
     QVBoxLayout,
-    QWidget,
 )
 
 from docker_services import volumes as volumes_service
@@ -19,6 +18,7 @@ from ui.dialogs.confirm_dialog import confirm
 from ui.dialogs.inspect_dialog import InspectDialog
 from ui.icons import standard_icon, trash_icon
 from ui.tables.base import (
+    ActionTrackingTab,
     DictRowsTableModel,
     install_column_sorting,
     install_column_width_persistence,
@@ -41,11 +41,12 @@ def _used_color(row):
     return USED_COLOR if row["used"] else UNUSED_COLOR
 
 
-class VolumesTab(QWidget):
+class VolumesTab(ActionTrackingTab):
     def __init__(self, connection_manager, parent=None, notify=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self._refreshing = False
+        self._refresh_queued = False
         self._context_row = None
         self._notify = notify or (lambda message: None)
 
@@ -133,6 +134,7 @@ class VolumesTab(QWidget):
             self.model.set_rows([])
             return
         if self._refreshing:
+            self._refresh_queued = True
             return
         self._refreshing = True
         run_task(
@@ -144,12 +146,12 @@ class VolumesTab(QWidget):
         )
 
     def _on_refresh_succeeded(self, rows):
-        self._refreshing = False
         self.model.set_rows(rows)
+        self._finish_refresh()
 
     def _on_refresh_failed(self, message):
-        self._refreshing = False
         self._notify(message)
+        self._finish_refresh()
 
     def _selected_row(self):
         if self._context_row is not None:
@@ -202,7 +204,7 @@ class VolumesTab(QWidget):
             return
         tasks = [functools.partial(volumes_service.remove, row["volume"], force=True) for row in rows]
         clear_selection = self._context_row is None
-        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection))
+        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection), track_action=True)
 
     def _show_inspect(self):
         row = self._selected_row()
@@ -230,6 +232,7 @@ class VolumesTab(QWidget):
             client,
             on_success=self._on_prune_succeeded,
             on_error=self._on_action_failed,
+            track_action=True,
         )
 
     def _on_prune_succeeded(self, result):
@@ -239,6 +242,8 @@ class VolumesTab(QWidget):
     def _open_transfer_window(self):
         row = self._selected_row()
         window = VolumeTransferWindow(self)
+        window.action_started.connect(self.action_started)
+        window.action_finished.connect(self.action_finished)
         if row is not None:
             window.source_picker.preselect_volume(row["name"])
         window.exec()

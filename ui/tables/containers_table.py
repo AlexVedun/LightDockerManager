@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableView,
     QVBoxLayout,
-    QWidget,
 )
 
 from docker_services import containers as containers_service
@@ -18,6 +17,7 @@ from ui.dialogs.inspect_dialog import InspectDialog
 from ui.dialogs.logs_viewer import LogsViewerDialog
 from ui.icons import standard_icon, trash_icon
 from ui.tables.base import (
+    ActionTrackingTab,
     DictRowsTableModel,
     GroupedSortProxyModel,
     install_column_sorting,
@@ -39,11 +39,12 @@ STATUS_COLORS = {
 DEFAULT_STATUS_COLOR = QColor("#95a5a6")
 
 
-class ContainersTab(QWidget):
+class ContainersTab(ActionTrackingTab):
     def __init__(self, connection_manager, parent=None, notify=None):
         super().__init__(parent)
         self.connection_manager = connection_manager
         self._refreshing = False
+        self._refresh_queued = False
         self._context_row = None
         self._notify = notify or (lambda message: None)
 
@@ -143,6 +144,7 @@ class ContainersTab(QWidget):
             self._apply_group_spans()
             return
         if self._refreshing:
+            self._refresh_queued = True
             return
         self._refreshing = True
         run_task(
@@ -154,9 +156,9 @@ class ContainersTab(QWidget):
         )
 
     def _on_refresh_succeeded(self, rows):
-        self._refreshing = False
         self.model.set_rows(rows)
         self._apply_group_spans()
+        self._finish_refresh()
 
     def _apply_group_spans(self):
         self.view.clearSpans()
@@ -167,8 +169,8 @@ class ContainersTab(QWidget):
                 self.view.setSpan(proxy_row, 0, 1, column_count)
 
     def _on_refresh_failed(self, message):
-        self._refreshing = False
         self._notify(message)
+        self._finish_refresh()
 
     def _selected_row(self):
         if self._context_row is not None:
@@ -218,7 +220,7 @@ class ContainersTab(QWidget):
             return
         tasks = [functools.partial(action, row["container"]) for row in rows]
         clear_selection = self._context_row is None
-        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection))
+        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection), track_action=True)
 
     def _remove_selected(self):
         rows = self._target_rows()
@@ -229,7 +231,7 @@ class ContainersTab(QWidget):
             return
         tasks = [functools.partial(containers_service.remove, row["container"], force=True) for row in rows]
         clear_selection = self._context_row is None
-        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection))
+        run_bulk_task(self, tasks, lambda errors, stale: self._on_bulk_action_finished(errors, stale, clear_selection), track_action=True)
 
     def _show_logs(self):
         row = self._selected_row()

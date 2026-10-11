@@ -30,7 +30,7 @@ class TaskWorker(QThread):
         self.succeeded.emit(result)
 
 
-def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=None, **kwargs):
+def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=None, track_action=False, **kwargs):
     """Runs func(*args, **kwargs) on a background QThread.
 
     The worker is kept alive on `owner` (in an internal list) until it
@@ -48,6 +48,8 @@ def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=No
     def _cleanup():
         if worker in owner._background_workers:
             owner._background_workers.remove(worker)
+        if track_action:
+            owner.action_finished.emit()
 
     if on_success is not None:
         worker.succeeded.connect(on_success)
@@ -60,11 +62,13 @@ def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=No
     worker.finished.connect(_cleanup)
 
     owner._background_workers.append(worker)
+    if track_action:
+        owner.action_started.emit()
     worker.start()
     return worker
 
 
-def run_bulk_task(owner, tasks, on_finished):
+def run_bulk_task(owner, tasks, on_finished, track_action=False):
     """Runs each zero-arg callable in `tasks` sequentially on background threads.
 
     Calls on_finished(errors, stale) once every task has completed. `errors`
@@ -76,10 +80,16 @@ def run_bulk_task(owner, tasks, on_finished):
     errors = []
     stale = []
     remaining = list(tasks)
+    if track_action:
+        owner.action_started.emit()
 
     def _run_next():
         if not remaining:
-            on_finished(errors, stale)
+            try:
+                on_finished(errors, stale)
+            finally:
+                if track_action:
+                    owner.action_finished.emit()
             return
         task = remaining.pop(0)
 
