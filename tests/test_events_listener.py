@@ -24,6 +24,46 @@ def test_run_emits_data_changed_for_known_event_types():
     assert received == ["containers", "images"]
 
 
+def test_run_ignores_container_events_that_do_not_change_table_rows():
+    client = MagicMock()
+    client.events.return_value = [
+        {"Type": "container", "Action": "exec_create"},
+        {"Type": "container", "Action": "exec_start"},
+        {"Type": "container", "Action": "exec_die"},
+        {"Type": "container", "Action": "health_status: healthy"},
+        {"Type": "container", "Action": "top"},
+        {"Type": "container", "Action": "start"},
+        {"Type": "container", "Action": "die"},
+    ]
+
+    listener = DockerEventsListener(client)
+    received = []
+    listener.data_changed.connect(received.append)
+
+    listener.run()
+
+    assert received == ["containers", "containers"]
+
+
+def test_run_ignores_unrelated_image_volume_and_network_events():
+    client = MagicMock()
+    client.events.return_value = [
+        {"Type": "image", "Action": "push"},
+        {"Type": "volume", "Action": "mount"},
+        {"Type": "volume", "Action": "create"},
+        {"Type": "network", "Action": "connect"},
+        {"Type": "image", "Action": "pull"},
+    ]
+
+    listener = DockerEventsListener(client)
+    received = []
+    listener.data_changed.connect(received.append)
+
+    listener.run()
+
+    assert received == ["volumes", "networks", "images"]
+
+
 def test_stop_closes_stream_if_present():
     client = MagicMock()
     listener = DockerEventsListener(client)

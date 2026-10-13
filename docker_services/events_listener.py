@@ -9,6 +9,16 @@ EVENT_TYPE_MAP = {
     "network": "networks",
 }
 
+REFRESH_ACTIONS = {
+    "container": {
+        "create", "destroy", "die", "kill", "oom", "pause", "rename",
+        "restart", "start", "stop", "unpause", "update",
+    },
+    "image": {"delete", "import", "load", "pull", "tag", "untag"},
+    "volume": {"create", "destroy"},
+    "network": {"create", "connect", "destroy", "disconnect", "remove"},
+}
+
 
 class DockerEventsListener(QThread):
     """Streams docker events and emits which entity type changed."""
@@ -44,8 +54,10 @@ class DockerEventsListener(QThread):
 
         try:
             for event in self._stream:
-                entity_type = EVENT_TYPE_MAP.get(event.get("Type"))
-                if entity_type:
+                docker_type = event.get("Type")
+                entity_type = EVENT_TYPE_MAP.get(docker_type)
+                action = event.get("Action") or event.get("status")
+                if entity_type and action in REFRESH_ACTIONS[docker_type]:
                     self.data_changed.emit(entity_type)
         except Exception as exc:
             if not self._stopped:
