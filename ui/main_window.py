@@ -149,9 +149,9 @@ class MainWindow(QMainWindow):
 
     def _on_action_finished(self):
         self._active_actions -= 1
-        self._refresh_all()
         if self._active_actions == 0:
             self.refresh_timer.setInterval(self._refresh_interval_ms())
+        self._refresh_all()
 
     def _open_volume_transfer(self):
         window = VolumeTransferWindow(self)

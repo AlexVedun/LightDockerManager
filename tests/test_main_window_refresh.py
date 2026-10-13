@@ -1,10 +1,14 @@
 from types import SimpleNamespace
+import time
+
+import pytest
 
 from PySide6.QtWidgets import QApplication, QInputDialog
 
 import app_settings
 from ui.main_window import MainWindow
 from version import __version__
+from workers.task_worker import run_bulk_task
 
 QApplication.instance() or QApplication([])
 
@@ -41,6 +45,48 @@ def test_actions_use_fast_refresh_until_all_finish(tmp_path, monkeypatch):
         window.images_tab.action_finished.emit()
         assert window.refresh_timer.interval() == 30_000
         assert len(refreshed) == 2
+    finally:
+        window.close()
+
+
+def test_bulk_action_restores_configured_interval(tmp_path, monkeypatch):
+    monkeypatch.setattr(app_settings, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(app_settings, "CONFIG_FILE", tmp_path / "settings.json")
+    app_settings.save_settings({"refresh_interval_seconds": 30})
+    monkeypatch.setattr("ui.main_window.load_profiles", lambda: [])
+    manager = SimpleNamespace(client=None, mode=None, is_connected=lambda: False)
+    window = MainWindow(manager)
+
+    try:
+        run_bulk_task(window.containers_tab, [lambda: None, lambda: None], lambda errors, stale: None, track_action=True)
+        assert window.refresh_timer.interval() == 5_000
+        deadline = time.monotonic() + 2
+        while window._active_actions and time.monotonic() < deadline:
+            QApplication.processEvents()
+        assert window._active_actions == 0
+        assert window.refresh_timer.interval() == 30_000
+    finally:
+        window.close()
+
+
+def test_action_restores_interval_even_when_immediate_refresh_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(app_settings, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(app_settings, "CONFIG_FILE", tmp_path / "settings.json")
+    app_settings.save_settings({"refresh_interval_seconds": 30})
+    monkeypatch.setattr("ui.main_window.load_profiles", lambda: [])
+    manager = SimpleNamespace(client=None, mode=None, is_connected=lambda: False)
+    window = MainWindow(manager)
+
+    def fail_refresh():
+        raise RuntimeError("refresh failed")
+
+    try:
+        window._on_action_started()
+        monkeypatch.setattr(window, "_refresh_all", fail_refresh)
+        with pytest.raises(RuntimeError, match="refresh failed"):
+            window._on_action_finished()
+        assert window._active_actions == 0
+        assert window.refresh_timer.interval() == 30_000
     finally:
         window.close()
 

@@ -30,7 +30,8 @@ class TaskWorker(QThread):
         self.succeeded.emit(result)
 
 
-def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=None, track_action=False, **kwargs):
+def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=None, on_finished=None,
+             track_action=False, **kwargs):
     """Runs func(*args, **kwargs) on a background QThread.
 
     The worker is kept alive on `owner` (in an internal list) until it
@@ -48,8 +49,12 @@ def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=No
     def _cleanup():
         if worker in owner._background_workers:
             owner._background_workers.remove(worker)
-        if track_action:
-            owner.action_finished.emit()
+        try:
+            if on_finished is not None:
+                on_finished()
+        finally:
+            if track_action:
+                owner.action_finished.emit()
 
     if on_success is not None:
         worker.succeeded.connect(on_success)
@@ -93,14 +98,12 @@ def run_bulk_task(owner, tasks, on_finished, track_action=False):
             return
         task = remaining.pop(0)
 
-        def _on_error(message):
-            errors.append(message)
-            _run_next()
-
-        def _on_not_found(message):
-            stale.append(message)
-            _run_next()
-
-        run_task(owner, task, on_success=lambda _: _run_next(), on_error=_on_error, on_not_found=_on_not_found)
+        run_task(
+            owner,
+            task,
+            on_error=errors.append,
+            on_not_found=stale.append,
+            on_finished=_run_next,
+        )
 
     _run_next()

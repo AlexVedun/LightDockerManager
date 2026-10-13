@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QThread, Signal
 from PySide6.QtWidgets import QApplication
 
 import time
@@ -148,6 +148,39 @@ def test_tracked_bulk_action_covers_all_tasks():
     _pump_until(lambda: "finished" in events)
 
     assert events == ["started", "first", "second", "callback", "finished"]
+
+
+def test_bulk_action_waits_for_thread_finish_before_next_task(monkeypatch):
+    owner = _TrackedOwner()
+    calls = []
+    events = []
+    owner.action_started.connect(lambda: events.append("started"))
+    owner.action_finished.connect(lambda: events.append("finished"))
+
+    def capture_task(_owner, _task, **callbacks):
+        calls.append(callbacks)
+
+    monkeypatch.setattr("workers.task_worker.run_task", capture_task)
+    run_bulk_task(owner, [lambda: None, lambda: None], lambda errors, stale: events.append("callback"), track_action=True)
+
+    assert len(calls) == 1
+    assert "on_success" not in calls[0]
+    calls[0]["on_finished"]()
+    assert len(calls) == 2
+    assert events == ["started"]
+
+    calls[1]["on_finished"]()
+    assert events == ["started", "callback", "finished"]
+
+
+def test_bulk_callback_runs_on_gui_thread():
+    owner = _TrackedOwner()
+    threads = []
+
+    run_bulk_task(owner, [lambda: None, lambda: None], lambda errors, stale: threads.append(QThread.currentThread()))
+    _pump_until(lambda: threads)
+
+    assert threads == [QApplication.instance().thread()]
 
 
 def test_run_bulk_task_collects_stale_items_separately_from_errors():
