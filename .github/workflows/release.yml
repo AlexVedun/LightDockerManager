@@ -159,19 +159,19 @@ jobs:
       contents: write
     steps:
       - name: Download AppImage
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-appimage
           path: distribution
 
       - name: Download EXE
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: windows-exe
           path: distribution
 
       - name: Download DMG
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: macos-dmg
           path: distribution
