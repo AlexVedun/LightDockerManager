@@ -83,7 +83,7 @@ jobs:
         run: packaging/build_appimage.sh
 
       - name: Store AppImage as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-appimage
           path: distribution/*.AppImage
@@ -113,7 +113,7 @@ jobs:
         run: ./packaging/build_windows.ps1
 
       - name: Store EXE as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-exe
           path: distribution/*.exe
@@ -144,7 +144,7 @@ jobs:
         run: packaging/build_dmg.sh
 
       - name: Store DMG as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-dmg
           path: distribution/*.dmg
