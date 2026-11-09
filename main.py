@@ -6,6 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app_settings import load_settings
+from connection.docker_environment import configure_docker_desktop_path
 from connection.manager import ConnectionManager
 from i18n_loader import install_translator, resolve_language
 from ui.main_window import MainWindow
@@ -18,6 +19,7 @@ def _icon_path():
 
 
 def main():
+    configure_docker_desktop_path()
     app = QApplication(sys.argv)
     app.setApplicationName("LightDockerManager")
     app.setApplicationVersion(__version__)
