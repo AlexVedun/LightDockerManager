@@ -1,10 +1,13 @@
 from types import SimpleNamespace
 
 from PySide6.QtCore import QSortFilterProxyModel, Qt
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication, QMenu, QPushButton, QTableView
 
 import app_settings
 from ui.tables.base import (
+    GROUP_HEADER_DARK_BACKGROUND,
+    GROUP_HEADER_LIGHT_BACKGROUND,
     DictRowsTableModel,
     install_column_sorting,
     install_column_width_persistence,
@@ -143,3 +146,24 @@ def test_context_bulk_action_preserves_other_checked_rows(monkeypatch):
 
     assert acted_on == ["first"]
     assert tab.model.checked_rows() == [second]
+
+
+def test_group_header_row_adapts_background_to_light_and_dark_palette(monkeypatch):
+    model = DictRowsTableModel(
+        ["Name"],
+        [lambda r: r["name"]],
+        row_key=lambda r: r["name"],
+        group_key=lambda r: r["project"],
+    )
+    model.set_rows([{"name": "app-1", "project": "core-php83-copy"}])
+    header_index = model.index(0, 0)
+
+    light_palette = QPalette()
+    light_palette.setColor(QPalette.Base, QColor("#ffffff"))
+    monkeypatch.setattr(QApplication, "palette", staticmethod(lambda: light_palette))
+    assert model.data(header_index, Qt.BackgroundRole) == GROUP_HEADER_LIGHT_BACKGROUND
+
+    dark_palette = QPalette()
+    dark_palette.setColor(QPalette.Base, QColor("#1e1e1e"))
+    monkeypatch.setattr(QApplication, "palette", staticmethod(lambda: dark_palette))
+    assert model.data(header_index, Qt.BackgroundRole) == GROUP_HEADER_DARK_BACKGROUND

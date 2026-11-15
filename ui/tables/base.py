@@ -1,10 +1,18 @@
 from PySide6.QtCore import QAbstractTableModel, QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPalette
-from PySide6.QtWidgets import QMenu, QStyledItemDelegate, QWidget
+from PySide6.QtWidgets import QApplication, QMenu, QStyledItemDelegate, QWidget
 
 from app_settings import load_settings, save_settings
 
-GROUP_HEADER_BACKGROUND = QColor("#e3e8ec")
+GROUP_HEADER_LIGHT_BACKGROUND = QColor("#e3e8ec")
+GROUP_HEADER_DARK_BACKGROUND = QColor("#2d3136")
+
+
+def _group_header_background():
+    app = QApplication.instance()
+    if app is not None and app.palette().color(QPalette.Base).lightness() < 128:
+        return GROUP_HEADER_DARK_BACKGROUND
+    return GROUP_HEADER_LIGHT_BACKGROUND
 
 
 class ActionTrackingTab(QWidget):
@@ -138,7 +146,7 @@ class DictRowsTableModel(QAbstractTableModel):
 
         if kind == "group":
             if role == Qt.BackgroundRole:
-                return GROUP_HEADER_BACKGROUND
+                return _group_header_background()
             if col == self.CHECKBOX_COLUMN:
                 if role == Qt.CheckStateRole:
                     members = self._groups.get(payload, [])
