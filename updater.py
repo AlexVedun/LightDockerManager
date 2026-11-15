@@ -1,4 +1,3 @@
-import http.client
 import json
 import os
 import shutil
@@ -98,9 +97,12 @@ def download_release_asset(url, destination_path, progress=None, expected_size=N
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
         resp_headers = getattr(response, "headers", None) or {}
         content_length = resp_headers.get("Content-Length") if hasattr(resp_headers, "get") else None
-        total = int(content_length) if content_length and str(content_length).isdigit() else None
-        if total is None and expected_size and expected_size > 0:
-            total = int(expected_size)
+        header_total = int(content_length) if content_length and str(content_length).isdigit() else None
+        asset_total = int(expected_size) if expected_size and expected_size > 0 else None
+        if header_total is not None and asset_total is not None:
+            total = max(header_total, asset_total)
+        else:
+            total = header_total if header_total is not None else asset_total
         transferred = 0
         with destination.open("wb") as out_file:
             while True:
@@ -113,7 +115,7 @@ def download_release_asset(url, destination_path, progress=None, expected_size=N
                     progress(transferred, total)
         if total is not None and transferred < total:
             destination.unlink(missing_ok=True)
-            raise http.client.IncompleteRead(transferred, total - transferred)
+            raise RuntimeError(f"Incomplete download: received {transferred} of {total} bytes.")
     return destination
 
 
@@ -237,11 +239,17 @@ fi
 
 install_direct() {{
     rm -rf "{staged_bundle}" "{backup_bundle}"
-    ditto "$SRC_APP" "{staged_bundle}"
+    if ! ditto "$SRC_APP" "{staged_bundle}"; then
+        rm -rf "{staged_bundle}"
+        return 1
+    fi
     xattr -cr "{staged_bundle}" 2>/dev/null || true
     codesign --force --deep --sign - "{staged_bundle}" 2>/dev/null || true
     if [ -d "{app_bundle}" ]; then
-        mv "{app_bundle}" "{backup_bundle}"
+        if ! mv "{app_bundle}" "{backup_bundle}"; then
+            rm -rf "{staged_bundle}"
+            return 1
+        fi
     fi
     if mv "{staged_bundle}" "{app_bundle}"; then
         rm -rf "{backup_bundle}"
@@ -257,7 +265,7 @@ install_direct() {{
 if [ -w "{app_bundle.parent}" ] && ( [ ! -e "{app_bundle}" ] || [ -w "{app_bundle}" ] ); then
     install_direct || true
 else
-    osascript -e 'do shell script "rm -rf \\"{staged_bundle}\\" \\"{backup_bundle}\\" && ditto \\"'"$SRC_APP"'\\" \\"{staged_bundle}\\" && (xattr -cr \\"{staged_bundle}\\" || true) && (codesign --force --deep --sign - \\"{staged_bundle}\\" || true) && (if [ -d \\"{app_bundle}\\" ]; then mv \\"{app_bundle}\\" \\"{backup_bundle}\\"; fi) && (if mv \\"{staged_bundle}\\" \\"{app_bundle}\\"; then rm -rf \\"{backup_bundle}\\"; else if [ -d \\"{backup_bundle}\\" ] && [ ! -d \\"{app_bundle}\\" ]; then mv \\"{backup_bundle}\\" \\"{app_bundle}\\"; fi; rm -rf \\"{staged_bundle}\\"; exit 1; fi)" with administrator privileges' || true
+    osascript -e 'do shell script "rm -rf \\"{staged_bundle}\\" \\"{backup_bundle}\\" && if ! ditto \\"'"$SRC_APP"'\\" \\"{staged_bundle}\\"; then rm -rf \\"{staged_bundle}\\"; exit 1; fi && (xattr -cr \\"{staged_bundle}\\" || true) && (codesign --force --deep --sign - \\"{staged_bundle}\\" || true) && (if [ -d \\"{app_bundle}\\" ]; then if ! mv \\"{app_bundle}\\" \\"{backup_bundle}\\"; then rm -rf \\"{staged_bundle}\\"; exit 1; fi; fi) && (if mv \\"{staged_bundle}\\" \\"{app_bundle}\\"; then rm -rf \\"{backup_bundle}\\"; else if [ -d \\"{backup_bundle}\\" ] && [ ! -d \\"{app_bundle}\\" ]; then mv \\"{backup_bundle}\\" \\"{app_bundle}\\"; fi; rm -rf \\"{staged_bundle}\\"; exit 1; fi)" with administrator privileges' || true
 fi
 
 open -n "{app_bundle}"

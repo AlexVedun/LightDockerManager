@@ -1,4 +1,3 @@
-import http.client
 import io
 import json
 import os
@@ -10,7 +9,7 @@ import pytest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 import updater
-from ui.dialogs.update_dialog import UpdateDialog
+from ui.dialogs.update_dialog import UpdateDialog, UpdateDownloadWorker
 from ui.main_window import MainWindow
 
 QApplication.instance() or QApplication([])
@@ -136,11 +135,31 @@ def test_download_release_asset_raises_on_incomplete_read_and_removes_partial_fi
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
 
     dest = tmp_path / "update.bin"
-    with pytest.raises(http.client.IncompleteRead) as exc_info:
+    with pytest.raises(RuntimeError, match="Incomplete download: received 5 of 100 bytes") as exc_info:
         updater.download_release_asset("https://example.com/update.bin", dest)
 
-    assert exc_info.value.partial == len(partial_data)
-    assert exc_info.value.expected == 100 - len(partial_data)
+    assert "5 of 100" in str(exc_info.value)
+    assert not dest.exists()
+
+
+def test_download_release_asset_verifies_expected_size_even_when_header_claims_smaller(tmp_path, monkeypatch):
+    partial_data = b"short"
+
+    class DummyResponse(io.BytesIO):
+        headers = {"Content-Length": "5"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+
+    dest = tmp_path / "update.bin"
+    with pytest.raises(RuntimeError, match="Incomplete download: received 5 of 100 bytes"):
+        updater.download_release_asset("https://example.com/update.bin", dest, expected_size=100)
+
     assert not dest.exists()
 
 
@@ -159,7 +178,7 @@ def test_download_release_asset_verifies_expected_size_when_header_missing(tmp_p
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
 
     dest = tmp_path / "update.bin"
-    with pytest.raises(http.client.IncompleteRead):
+    with pytest.raises(RuntimeError, match="Incomplete download: received 5 of 50 bytes"):
         updater.download_release_asset("https://example.com/update.bin", dest, expected_size=50)
 
     assert not dest.exists()
@@ -253,7 +272,8 @@ def _make_fake_macos_tools(bin_dir, *, ditto_fails=False, empty_dmg=False):
 
     ditto = bin_dir / "ditto"
     if ditto_fails:
-        ditto.write_text("#!/bin/bash\nexit 1\n", encoding="utf-8")
+        # Simulate ditto creating a partial target directory before failing!
+        ditto.write_text('#!/bin/bash\nmkdir -p "$2"\necho "corrupt" > "$2/version.txt"\nexit 1\n', encoding="utf-8")
     else:
         ditto.write_text('#!/bin/bash\ncp -R "$1" "$2"\n', encoding="utf-8")
     ditto.chmod(0o755)
@@ -311,6 +331,8 @@ def test_macos_update_script_preserves_existing_app_when_dmg_has_no_app(tmp_path
     assert res.returncode == 1
     assert app_bundle.exists()
     assert (app_bundle / "version.txt").read_text(encoding="utf-8") == "old-version"
+    assert not app_bundle.with_name(".LightDockerManager.app.new").exists()
+    assert not app_bundle.with_name(".LightDockerManager.app.bak").exists()
 
 
 def test_macos_update_script_preserves_existing_app_when_ditto_fails(tmp_path, monkeypatch):
@@ -334,6 +356,8 @@ def test_macos_update_script_preserves_existing_app_when_ditto_fails(tmp_path, m
 
     assert app_bundle.exists()
     assert (app_bundle / "version.txt").read_text(encoding="utf-8") == "old-version"
+    assert not app_bundle.with_name(".LightDockerManager.app.new").exists()
+    assert not app_bundle.with_name(".LightDockerManager.app.bak").exists()
 
 
 def test_apply_windows_exe_update_creates_batch_and_spawns_cmd(tmp_path, monkeypatch):
@@ -368,6 +392,36 @@ def test_update_dialog_hides_self_update_button_when_not_supported(monkeypatch):
         assert dialog.btn_open_page.isHidden() is False
     finally:
         dialog.close()
+
+
+def test_update_download_worker_emits_failed_signal_on_incomplete_download(monkeypatch):
+    partial_data = b"short"
+
+    class DummyResponse(io.BytesIO):
+        headers = {"Content-Length": "100"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+    release_info = {
+        "version": "2.0.0",
+        "tag_name": "v2.0.0",
+        "body": "Notes",
+        "html_url": "https://example.com/release",
+        "asset": {"name": "a.AppImage", "url": "https://example.com/a.AppImage", "size": 100},
+    }
+
+    worker = UpdateDownloadWorker(release_info)
+    errors = []
+    worker.failed.connect(errors.append)
+    worker.run()
+
+    assert len(errors) == 1
+    assert "Incomplete download: received 5 of 100 bytes" in errors[0]
 
 
 def test_main_window_manual_update_check_shows_up_to_date_message(monkeypatch):
