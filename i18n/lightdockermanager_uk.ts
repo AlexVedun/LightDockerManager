@@ -320,6 +320,29 @@
         <translation>Інтервал оновлення...</translation>
     </message>
     <message>
+        <location filename="../ui/main_window.py" line="110"/>
+        <source>Check for Updates...</source>
+        <translation>Перевірити оновлення...</translation>
+    </message>
+    <message>
+        <location filename="../ui/main_window.py" line="179"/>
+        <location filename="../ui/main_window.py" line="188"/>
+        <source>Check for Updates</source>
+        <translation>Перевірка оновлень</translation>
+    </message>
+    <message>
+        <location filename="../ui/main_window.py" line="180"/>
+        <source>You are running the latest version ({version}).</source>
+        <translation>У вас встановлено найновішу версію ({version}).</translation>
+    </message>
+    <message>
+        <location filename="../ui/main_window.py" line="189"/>
+        <source>Could not check for updates:
+{error}</source>
+        <translation>Не вдалося перевірити оновлення:
+{error}</translation>
+    </message>
+    <message>
         <location filename="../ui/main_window.py" line="103"/>
         <source>Tools</source>
         <translation>Інструменти</translation>
@@ -594,6 +617,71 @@
         <location filename="../workers/task_worker.py" line="23"/>
         <source>This item no longer exists. It may have been removed or recreated outside this application. The list has been refreshed.</source>
         <translation>Цей об&apos;єкт більше не існує. Можливо, його видалили або перестворили поза цим застосунком. Список оновлено.</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateDialog</name>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="43"/>
+        <source>Update Available</source>
+        <translation>Доступне оновлення</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="48"/>
+        <source>A new version of LightDockerManager is available: &lt;b&gt;{latest}&lt;/b&gt; (current: {current}).</source>
+        <translation>Доступна нова версія LightDockerManager: &lt;b&gt;{latest}&lt;/b&gt; (поточна: {current}).</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="56"/>
+        <source>Release notes:</source>
+        <translation>Список змін:</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="59"/>
+        <source>No release notes provided.</source>
+        <translation>Опис змін відсутній.</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="69"/>
+        <source>Update and Restart</source>
+        <translation>Оновити та перезапустити</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="70"/>
+        <source>Open Release Page</source>
+        <translation>Відкрити сторінку релізу</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="71"/>
+        <source>Later</source>
+        <translation>Пізніше</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="104"/>
+        <source>Downloading update...</source>
+        <translation>Завантаження оновлення...</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="123"/>
+        <source>Downloaded: {done} / {total}</source>
+        <translation>Завантажено: {done} / {total}</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="129"/>
+        <source>Downloaded: {done}</source>
+        <translation>Завантажено: {done}</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="145"/>
+        <source>Update Error</source>
+        <translation>Помилка оновлення</translation>
+    </message>
+    <message>
+        <location filename="../ui/dialogs/update_dialog.py" line="146"/>
+        <source>Failed to install update:
+{error}</source>
+        <translation>Не вдалося встановити оновлення:
+{error}</translation>
     </message>
 </context>
 <context>

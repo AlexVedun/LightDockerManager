@@ -15,12 +15,14 @@ from app_settings import DEFAULT_REFRESH_INTERVAL_SECONDS, load_settings, save_s
 from connection.profiles import load_profiles
 from docker_services.events_listener import DockerEventsListener
 from ui.dialogs.connection_dialog import ManageConnectionsDialog
+from ui.dialogs.update_dialog import UpdateDialog
 from ui.icons import standard_icon
 from ui.tables.containers_table import ContainersTab
 from ui.tables.images_table import ImagesTab
 from ui.tables.networks_table import NetworksTab
 from ui.tables.volumes_table import VolumesTab
 from ui.volume_transfer_window import VolumeTransferWindow
+from updater import check_for_updates
 from version import __version__
 from workers.task_worker import run_task
 
@@ -105,6 +107,9 @@ class MainWindow(QMainWindow):
         refresh_action = settings_menu.addAction(standard_icon("SP_BrowserReload"), self.tr("Refresh Interval..."))
         refresh_action.triggered.connect(self._set_refresh_interval)
 
+        update_action = settings_menu.addAction(standard_icon("SP_ArrowUp"), self.tr("Check for Updates..."))
+        update_action.triggered.connect(lambda: self._check_for_updates(manual=True))
+
         tools_menu = self.menuBar().addMenu(self.tr("Tools"))
         transfer_action = tools_menu.addAction(standard_icon("SP_ArrowRight"), self.tr("Volume Transfer..."))
         transfer_action.triggered.connect(self._open_volume_transfer)
@@ -159,6 +164,33 @@ class MainWindow(QMainWindow):
         window.action_finished.connect(self._on_action_finished)
         window.exec()
         self.volumes_tab.refresh()
+
+    def _check_for_updates(self, manual=False):
+        run_task(
+            self,
+            check_for_updates,
+            on_success=lambda info: self._on_update_check_succeeded(info, manual),
+            on_error=lambda message: self._on_update_check_failed(message, manual),
+        )
+
+    def _on_update_check_succeeded(self, release_info, manual):
+        if release_info is None:
+            if manual:
+                QMessageBox.information(
+                    self,
+                    self.tr("Check for Updates"),
+                    self.tr("You are running the latest version ({version}).").format(version=__version__),
+                )
+            return
+        UpdateDialog(release_info, self).exec()
+
+    def _on_update_check_failed(self, message, manual):
+        if manual:
+            QMessageBox.warning(
+                self,
+                self.tr("Check for Updates"),
+                self.tr("Could not check for updates:\n{error}").format(error=message),
+            )
 
     # -- connection switching -------------------------------------------------
 

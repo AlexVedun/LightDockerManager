@@ -41,6 +41,7 @@ def main():
 
     window = MainWindow(connection_manager)
     window.show()
+    window._check_for_updates(manual=False)
 
     sys.exit(app.exec())
 
