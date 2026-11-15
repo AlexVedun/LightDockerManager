@@ -5,7 +5,7 @@ import time
 
 import docker.errors
 
-from workers.task_worker import TaskWorker, run_bulk_task, run_task
+from workers.task_worker import _ACTIVE_WORKERS, TaskWorker, run_bulk_task, run_task
 
 QApplication.instance() or QApplication([])
 
@@ -226,3 +226,22 @@ def test_run_task_falls_back_to_on_error_for_not_found_when_not_given():
     _pump_events(worker)
 
     assert len(errors) == 1
+
+
+def test_run_task_retains_worker_in_module_registry_if_owner_is_garbage_collected():
+    import threading
+    import weakref
+
+    gate = threading.Event()
+    owner = _Owner()
+    worker = run_task(owner, lambda: gate.wait(2))
+    owner_ref = weakref.ref(owner)
+    assert worker in _ACTIVE_WORKERS
+
+    del owner
+    assert owner_ref() is None
+    assert worker in _ACTIVE_WORKERS
+
+    gate.set()
+    _pump_events(worker)
+    assert worker not in _ACTIVE_WORKERS

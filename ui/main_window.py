@@ -316,5 +316,11 @@ class MainWindow(QMainWindow):
             self.events_listener.wait(3000)
         for owner in (self, *self._tabs_by_entity.values()):
             for worker in list(getattr(owner, "_background_workers", [])):
+                try:
+                    worker.succeeded.disconnect()
+                    worker.failed.disconnect()
+                    worker.not_found.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
                 worker.wait(3000)
         super().closeEvent(event)

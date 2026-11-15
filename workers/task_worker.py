@@ -1,5 +1,9 @@
+import weakref
+
 import docker.errors
 from PySide6.QtCore import QThread, Signal
+
+_ACTIVE_WORKERS = set()
 
 
 class TaskWorker(QThread):
@@ -46,15 +50,19 @@ def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=No
 
     worker = TaskWorker(func, *args, **kwargs)
 
+    owner_ref = weakref.ref(owner)
+
     def _cleanup():
-        if worker in owner._background_workers:
-            owner._background_workers.remove(worker)
+        _ACTIVE_WORKERS.discard(worker)
+        live_owner = owner_ref()
+        if live_owner is not None and worker in getattr(live_owner, "_background_workers", ()):
+            live_owner._background_workers.remove(worker)
         try:
-            if on_finished is not None:
+            if on_finished is not None and live_owner is not None:
                 on_finished()
         finally:
-            if track_action:
-                owner.action_finished.emit()
+            if track_action and live_owner is not None:
+                live_owner.action_finished.emit()
 
     if on_success is not None:
         worker.succeeded.connect(on_success)
@@ -66,6 +74,7 @@ def run_task(owner, func, *args, on_success=None, on_error=None, on_not_found=No
         worker.not_found.connect(on_error)
     worker.finished.connect(_cleanup)
 
+    _ACTIVE_WORKERS.add(worker)
     owner._background_workers.append(worker)
     if track_action:
         owner.action_started.emit()

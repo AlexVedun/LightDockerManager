@@ -12,6 +12,7 @@ from version import __version__
 
 GITHUB_REPO = "AlexVedun/LightDockerManager"
 LATEST_RELEASE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+CHECK_TIMEOUT_SECONDS = 3
 REQUEST_TIMEOUT_SECONDS = 15
 DOWNLOAD_CHUNK_SIZE = 64 * 1024
 
@@ -69,7 +70,7 @@ def check_for_updates(current_version=__version__, platform=None):
             "User-Agent": f"LightDockerManager/{current_version}",
         },
     )
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+    with urllib.request.urlopen(request, timeout=CHECK_TIMEOUT_SECONDS) as response:
         payload = json.loads(response.read().decode("utf-8"))
 
     tag_name = (payload.get("tag_name") or "").strip()
@@ -210,66 +211,96 @@ def apply_macos_dmg_update(downloaded_file, app_bundle_path=None, current_pid=No
     pid = current_pid or os.getpid()
     dmg_path = Path(downloaded_file).resolve()
     mount_dir = Path(tempfile.mkdtemp(prefix="ldm_dmg_"))
-    script_file = Path(tempfile.gettempdir()) / f"ldm_update_{pid}.sh"
     app_name = app_bundle.name
     staged_bundle = app_bundle.with_name(f".{app_name}.new")
     backup_bundle = app_bundle.with_name(f".{app_name}.bak")
 
-    script_content = f"""#!/bin/bash
-set -e
+    try:
+        subprocess.run(
+            ["hdiutil", "attach", str(dmg_path), "-nobrowse", "-readonly", "-mountpoint", str(mount_dir), "-quiet"],
+            check=True,
+        )
+        src_app = mount_dir / app_name
+        if not src_app.is_dir():
+            candidates = list(mount_dir.glob("*.app")) + list(mount_dir.glob("*/*.app"))
+            src_app = candidates[0] if candidates else None
+        if src_app is None or not src_app.is_dir():
+            raise RuntimeError("The update DMG does not contain a valid .app bundle.")
+
+        if os.access(app_bundle.parent, os.W_OK) and (not app_bundle.exists() or os.access(app_bundle, os.W_OK)):
+            shutil.rmtree(staged_bundle, ignore_errors=True)
+            shutil.rmtree(backup_bundle, ignore_errors=True)
+            try:
+                subprocess.run(["ditto", str(src_app), str(staged_bundle)], check=True)
+            except Exception:
+                shutil.rmtree(staged_bundle, ignore_errors=True)
+                raise
+            subprocess.run(["xattr", "-cr", str(staged_bundle)], check=False)
+            subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(staged_bundle)], check=False)
+            subprocess.run(["hdiutil", "detach", str(mount_dir), "-force", "-quiet"], check=False)
+            shutil.rmtree(mount_dir, ignore_errors=True)
+            dmg_path.unlink(missing_ok=True)
+            script_content = f"""#!/bin/bash
 while kill -0 {pid} 2>/dev/null; do
     sleep 0.5
 done
 
 cleanup() {{
-    hdiutil detach "{mount_dir}" -force -quiet 2>/dev/null || true
-    rm -rf "{mount_dir}" "{dmg_path}" "$0"
+    rm -rf "$0"
 }}
 trap cleanup EXIT
 
-hdiutil attach "{dmg_path}" -nobrowse -readonly -mountpoint "{mount_dir}" -quiet
-SRC_APP="{mount_dir}/{app_name}"
-if [ ! -d "$SRC_APP" ]; then
-    SRC_APP="$(find "{mount_dir}" -maxdepth 2 -name "*.app" -print -quit)"
+if [ -d "{app_bundle}" ]; then
+    if ! mv "{app_bundle}" "{backup_bundle}"; then
+        rm -rf "{staged_bundle}"
+        osascript -e 'display alert "Update Error" message "Failed to replace {app_name}." as critical' 2>/dev/null || true
+        open -n "{app_bundle}"
+        exit 1
+    fi
 fi
-if [ -z "$SRC_APP" ] || [ ! -d "$SRC_APP" ]; then
+if mv "{staged_bundle}" "{app_bundle}"; then
+    rm -rf "{backup_bundle}"
+else
+    if [ -d "{backup_bundle}" ] && [ ! -d "{app_bundle}" ]; then
+        mv "{backup_bundle}" "{app_bundle}"
+    fi
+    rm -rf "{staged_bundle}"
+    osascript -e 'display alert "Update Error" message "Failed to activate the updated {app_name}." as critical' 2>/dev/null || true
     open -n "{app_bundle}"
     exit 1
 fi
 
-install_direct() {{
-    rm -rf "{staged_bundle}" "{backup_bundle}"
-    if ! ditto "$SRC_APP" "{staged_bundle}"; then
-        rm -rf "{staged_bundle}"
-        return 1
-    fi
-    xattr -cr "{staged_bundle}" 2>/dev/null || true
-    codesign --force --deep --sign - "{staged_bundle}" 2>/dev/null || true
-    if [ -d "{app_bundle}" ]; then
-        if ! mv "{app_bundle}" "{backup_bundle}"; then
-            rm -rf "{staged_bundle}"
-            return 1
-        fi
-    fi
-    if mv "{staged_bundle}" "{app_bundle}"; then
-        rm -rf "{backup_bundle}"
-    else
-        if [ -d "{backup_bundle}" ] && [ ! -d "{app_bundle}" ]; then
-            mv "{backup_bundle}" "{app_bundle}"
-        fi
-        rm -rf "{staged_bundle}"
-        return 1
-    fi
-}}
-
-if [ -w "{app_bundle.parent}" ] && ( [ ! -e "{app_bundle}" ] || [ -w "{app_bundle}" ] ); then
-    install_direct || true
-else
-    osascript -e 'do shell script "rm -rf \\"{staged_bundle}\\" \\"{backup_bundle}\\" && if ! ditto \\"'"$SRC_APP"'\\" \\"{staged_bundle}\\"; then rm -rf \\"{staged_bundle}\\"; exit 1; fi && (xattr -cr \\"{staged_bundle}\\" || true) && (codesign --force --deep --sign - \\"{staged_bundle}\\" || true) && (if [ -d \\"{app_bundle}\\" ]; then if ! mv \\"{app_bundle}\\" \\"{backup_bundle}\\"; then rm -rf \\"{staged_bundle}\\"; exit 1; fi; fi) && (if mv \\"{staged_bundle}\\" \\"{app_bundle}\\"; then rm -rf \\"{backup_bundle}\\"; else if [ -d \\"{backup_bundle}\\" ] && [ ! -d \\"{app_bundle}\\" ]; then mv \\"{backup_bundle}\\" \\"{app_bundle}\\"; fi; rm -rf \\"{staged_bundle}\\"; exit 1; fi)" with administrator privileges' || true
-fi
-
 open -n "{app_bundle}"
 """
+        else:
+            cmd = (
+                f'rm -rf \\"{staged_bundle}\\" \\"{backup_bundle}\\" && '
+                f'if ! ditto \\"{src_app}\\" \\"{staged_bundle}\\"; then rm -rf \\"{staged_bundle}\\"; exit 1; fi && '
+                f'(xattr -cr \\"{staged_bundle}\\" || true) && '
+                f'(codesign --force --deep --sign - \\"{staged_bundle}\\" || true) && '
+                f'(if [ -d \\"{app_bundle}\\" ]; then if ! mv \\"{app_bundle}\\" \\"{backup_bundle}\\"; then rm -rf \\"{staged_bundle}\\"; exit 1; fi; fi) && '
+                f'(if mv \\"{staged_bundle}\\" \\"{app_bundle}\\"; then rm -rf \\"{backup_bundle}\\"; else if [ -d \\"{backup_bundle}\\" ] && [ ! -d \\"{app_bundle}\\" ]; then mv \\"{backup_bundle}\\" \\"{app_bundle}\\"; fi; rm -rf \\"{staged_bundle}\\"; exit 1; fi)'
+            )
+            subprocess.run(
+                ["osascript", "-e", f'do shell script "{cmd}" with administrator privileges'],
+                check=True,
+            )
+            subprocess.run(["hdiutil", "detach", str(mount_dir), "-force", "-quiet"], check=False)
+            shutil.rmtree(mount_dir, ignore_errors=True)
+            dmg_path.unlink(missing_ok=True)
+            script_content = f"""#!/bin/bash
+while kill -0 {pid} 2>/dev/null; do
+    sleep 0.5
+done
+rm -rf "$0"
+open -n "{app_bundle}"
+"""
+    except Exception:
+        subprocess.run(["hdiutil", "detach", str(mount_dir), "-force", "-quiet"], check=False)
+        shutil.rmtree(mount_dir, ignore_errors=True)
+        raise
+
+    script_file = Path(tempfile.gettempdir()) / f"ldm_update_{pid}.sh"
     script_file.write_text(script_content, encoding="utf-8")
     script_file.chmod(0o755)
     subprocess.Popen(["/bin/bash", str(script_file)], close_fds=True, start_new_session=True)
