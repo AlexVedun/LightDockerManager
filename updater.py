@@ -1,3 +1,4 @@
+import http.client
 import json
 import os
 import shutil
@@ -87,7 +88,7 @@ def check_for_updates(current_version=__version__, platform=None):
     }
 
 
-def download_release_asset(url, destination_path, progress=None):
+def download_release_asset(url, destination_path, progress=None, expected_size=None):
     destination = Path(destination_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(
@@ -95,8 +96,11 @@ def download_release_asset(url, destination_path, progress=None):
         headers={"User-Agent": f"LightDockerManager/{__version__}"},
     )
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-        content_length = response.headers.get("Content-Length")
-        total = int(content_length) if content_length and content_length.isdigit() else None
+        resp_headers = getattr(response, "headers", None) or {}
+        content_length = resp_headers.get("Content-Length") if hasattr(resp_headers, "get") else None
+        total = int(content_length) if content_length and str(content_length).isdigit() else None
+        if total is None and expected_size and expected_size > 0:
+            total = int(expected_size)
         transferred = 0
         with destination.open("wb") as out_file:
             while True:
@@ -107,6 +111,9 @@ def download_release_asset(url, destination_path, progress=None):
                 transferred += len(chunk)
                 if progress is not None:
                     progress(transferred, total)
+        if total is not None and transferred < total:
+            destination.unlink(missing_ok=True)
+            raise http.client.IncompleteRead(transferred, total - transferred)
     return destination
 
 
@@ -118,6 +125,22 @@ def resolve_macos_app_bundle(executable_path=None):
     return None
 
 
+def _is_macos_bundle_updatable(app_bundle):
+    parts = app_bundle.parts
+    if len(parts) >= 2 and parts[0] == "/" and parts[1] == "Volumes":
+        return False
+    st_vfs = getattr(os, "statvfs", None)
+    if st_vfs is not None:
+        try:
+            vfs = st_vfs(app_bundle.parent)
+            st_rdonly = getattr(os, "ST_RDONLY", 1)
+            if bool(vfs.f_flag & st_rdonly):
+                return False
+        except OSError:
+            return False
+    return True
+
+
 def can_self_update(platform=None, env=None, frozen=None, executable_path=None):
     platform = platform or sys.platform
     env = os.environ if env is None else env
@@ -126,7 +149,10 @@ def can_self_update(platform=None, env=None, frozen=None, executable_path=None):
     if platform.startswith("linux"):
         return bool(env.get("APPIMAGE"))
     if platform == "darwin":
-        return bool(frozen and resolve_macos_app_bundle(executable_path) is not None)
+        if not frozen:
+            return False
+        app_bundle = resolve_macos_app_bundle(executable_path)
+        return app_bundle is not None and _is_macos_bundle_updatable(app_bundle)
     if platform in ("win32", "cygwin"):
         return bool(frozen)
     return False
@@ -160,7 +186,9 @@ def apply_windows_exe_update(downloaded_file, executable_path=None, current_pid=
         "    timeout /t 1 /nobreak >NUL\r\n"
         "    goto waitloop\r\n"
         ")\r\n"
-        f'move /Y "{staged}" "{target}" >NUL\r\n'
+        f'if exist "{staged}" (\r\n'
+        f'    move /Y "{staged}" "{target}" >NUL\r\n'
+        ")\r\n"
         f'start "" "{target}"\r\n'
         'del "%~f0"\r\n'
     )
@@ -174,12 +202,16 @@ def apply_macos_dmg_update(downloaded_file, app_bundle_path=None, current_pid=No
     app_bundle = Path(app_bundle_path) if app_bundle_path else resolve_macos_app_bundle()
     if app_bundle is None:
         raise RuntimeError("Could not locate the running .app bundle.")
+    if not _is_macos_bundle_updatable(app_bundle):
+        raise RuntimeError("Cannot self-update an application running from a read-only volume.")
 
     pid = current_pid or os.getpid()
     dmg_path = Path(downloaded_file).resolve()
     mount_dir = Path(tempfile.mkdtemp(prefix="ldm_dmg_"))
     script_file = Path(tempfile.gettempdir()) / f"ldm_update_{pid}.sh"
     app_name = app_bundle.name
+    staged_bundle = app_bundle.with_name(f".{app_name}.new")
+    backup_bundle = app_bundle.with_name(f".{app_name}.bak")
 
     script_content = f"""#!/bin/bash
 set -e
@@ -198,14 +230,34 @@ SRC_APP="{mount_dir}/{app_name}"
 if [ ! -d "$SRC_APP" ]; then
     SRC_APP="$(find "{mount_dir}" -maxdepth 2 -name "*.app" -print -quit)"
 fi
+if [ -z "$SRC_APP" ] || [ ! -d "$SRC_APP" ]; then
+    open -n "{app_bundle}"
+    exit 1
+fi
+
+install_direct() {{
+    rm -rf "{staged_bundle}" "{backup_bundle}"
+    ditto "$SRC_APP" "{staged_bundle}"
+    xattr -cr "{staged_bundle}" 2>/dev/null || true
+    codesign --force --deep --sign - "{staged_bundle}" 2>/dev/null || true
+    if [ -d "{app_bundle}" ]; then
+        mv "{app_bundle}" "{backup_bundle}"
+    fi
+    if mv "{staged_bundle}" "{app_bundle}"; then
+        rm -rf "{backup_bundle}"
+    else
+        if [ -d "{backup_bundle}" ] && [ ! -d "{app_bundle}" ]; then
+            mv "{backup_bundle}" "{app_bundle}"
+        fi
+        rm -rf "{staged_bundle}"
+        return 1
+    fi
+}}
 
 if [ -w "{app_bundle.parent}" ] && ( [ ! -e "{app_bundle}" ] || [ -w "{app_bundle}" ] ); then
-    rm -rf "{app_bundle}"
-    ditto "$SRC_APP" "{app_bundle}"
-    xattr -cr "{app_bundle}" 2>/dev/null || true
-    codesign --force --deep --sign - "{app_bundle}" 2>/dev/null || true
+    install_direct || true
 else
-    osascript -e 'do shell script "rm -rf \\"{app_bundle}\\" && ditto \\"'"$SRC_APP"'\\" \\"{app_bundle}\\" && xattr -cr \\"{app_bundle}\\" && (codesign --force --deep --sign - \\"{app_bundle}\\" || true)" with administrator privileges'
+    osascript -e 'do shell script "rm -rf \\"{staged_bundle}\\" \\"{backup_bundle}\\" && ditto \\"'"$SRC_APP"'\\" \\"{staged_bundle}\\" && (xattr -cr \\"{staged_bundle}\\" || true) && (codesign --force --deep --sign - \\"{staged_bundle}\\" || true) && (if [ -d \\"{app_bundle}\\" ]; then mv \\"{app_bundle}\\" \\"{backup_bundle}\\"; fi) && (if mv \\"{staged_bundle}\\" \\"{app_bundle}\\"; then rm -rf \\"{backup_bundle}\\"; else if [ -d \\"{backup_bundle}\\" ] && [ ! -d \\"{app_bundle}\\" ]; then mv \\"{backup_bundle}\\" \\"{app_bundle}\\"; fi; rm -rf \\"{staged_bundle}\\"; exit 1; fi)" with administrator privileges' || true
 fi
 
 open -n "{app_bundle}"
@@ -226,7 +278,12 @@ def download_and_install_update(release_info, progress=None, platform=None):
     os.close(fd)
     downloaded = Path(temp_path)
     try:
-        download_release_asset(asset["url"], downloaded, progress=progress)
+        download_release_asset(
+            asset["url"],
+            downloaded,
+            progress=progress,
+            expected_size=asset.get("size"),
+        )
         if platform.startswith("linux"):
             apply_linux_appimage_update(downloaded)
         elif platform == "darwin":

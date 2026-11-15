@@ -1,5 +1,9 @@
+import http.client
 import io
 import json
+import os
+import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -117,7 +121,51 @@ def test_download_release_asset_writes_file_and_reports_progress(tmp_path, monke
     assert progress_calls[-1] == (len(data), len(data))
 
 
-def test_can_self_update_across_platforms(tmp_path):
+def test_download_release_asset_raises_on_incomplete_read_and_removes_partial_file(tmp_path, monkeypatch):
+    partial_data = b"short"
+
+    class DummyResponse(io.BytesIO):
+        headers = {"Content-Length": "100"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+
+    dest = tmp_path / "update.bin"
+    with pytest.raises(http.client.IncompleteRead) as exc_info:
+        updater.download_release_asset("https://example.com/update.bin", dest)
+
+    assert exc_info.value.partial == len(partial_data)
+    assert exc_info.value.expected == 100 - len(partial_data)
+    assert not dest.exists()
+
+
+def test_download_release_asset_verifies_expected_size_when_header_missing(tmp_path, monkeypatch):
+    partial_data = b"short"
+
+    class DummyResponse(io.BytesIO):
+        headers = {}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+
+    dest = tmp_path / "update.bin"
+    with pytest.raises(http.client.IncompleteRead):
+        updater.download_release_asset("https://example.com/update.bin", dest, expected_size=50)
+
+    assert not dest.exists()
+
+
+def test_can_self_update_across_platforms(tmp_path, monkeypatch):
     assert updater.can_self_update(platform="linux", env={"APPIMAGE": "/tmp/app.AppImage"}, frozen=True) is True
     assert updater.can_self_update(platform="linux", env={}, frozen=True) is False
 
@@ -126,6 +174,18 @@ def test_can_self_update_across_platforms(tmp_path):
     app_exe.write_text("bin")
     assert updater.can_self_update(platform="darwin", frozen=True, executable_path=app_exe) is True
     assert updater.can_self_update(platform="darwin", frozen=False, executable_path=app_exe) is False
+
+    monkeypatch.setattr(
+        Path,
+        "resolve",
+        lambda self: Path("/Volumes/LightDockerManager/LightDockerManager.app/Contents/MacOS/LightDockerManager"),
+    )
+    assert updater.can_self_update(platform="darwin", frozen=True, executable_path=app_exe) is False
+    monkeypatch.undo()
+
+    monkeypatch.setattr(os, "statvfs", lambda path: SimpleNamespace(f_flag=getattr(os, "ST_RDONLY", 1)))
+    assert updater.can_self_update(platform="darwin", frozen=True, executable_path=app_exe) is False
+    monkeypatch.undo()
 
     assert updater.can_self_update(platform="win32", frozen=True) is True
     assert updater.can_self_update(platform="win32", frozen=False) is False
@@ -165,6 +225,115 @@ def test_apply_macos_dmg_update_creates_script_with_xattr_and_codesign(tmp_path,
     assert "xattr -cr" in script_text
     assert "codesign --force --deep --sign -" in script_text
     assert str(app_bundle) in script_text
+
+
+def _make_fake_macos_tools(bin_dir, *, ditto_fails=False, empty_dmg=False):
+    bin_dir.mkdir(parents=True, exist_ok=True)
+
+    hdiutil = bin_dir / "hdiutil"
+    if empty_dmg:
+        hdiutil.write_text("#!/bin/bash\nexit 0\n", encoding="utf-8")
+    else:
+        hdiutil.write_text(
+            '#!/bin/bash\n'
+            'if [ "$1" = "attach" ]; then\n'
+            '  for ((i=1; i<=$#; i++)); do\n'
+            '    if [ "${!i}" = "-mountpoint" ]; then\n'
+            '      next=$((i+1))\n'
+            '      mp="${!next}"\n'
+            '      mkdir -p "$mp/LightDockerManager.app"\n'
+            '      echo "new-version" > "$mp/LightDockerManager.app/version.txt"\n'
+            '    fi\n'
+            '  done\n'
+            'fi\n'
+            'exit 0\n',
+            encoding="utf-8",
+        )
+    hdiutil.chmod(0o755)
+
+    ditto = bin_dir / "ditto"
+    if ditto_fails:
+        ditto.write_text("#!/bin/bash\nexit 1\n", encoding="utf-8")
+    else:
+        ditto.write_text('#!/bin/bash\ncp -R "$1" "$2"\n', encoding="utf-8")
+    ditto.chmod(0o755)
+
+    for tool in ("xattr", "codesign", "open"):
+        p = bin_dir / tool
+        p.write_text('#!/bin/bash\necho "$0 $@" >> "' + str(bin_dir / "calls.log") + '"\nexit 0\n', encoding="utf-8")
+        p.chmod(0o755)
+
+
+def test_macos_update_script_execution_replaces_bundle_safely(tmp_path, monkeypatch):
+    app_bundle = tmp_path / "LightDockerManager.app"
+    app_bundle.mkdir()
+    (app_bundle / "version.txt").write_text("old-version", encoding="utf-8")
+    dmg_file = tmp_path / "update.dmg"
+    dmg_file.write_bytes(b"dmg")
+
+    bin_dir = tmp_path / "fake_bin"
+    _make_fake_macos_tools(bin_dir)
+
+    launched = []
+    monkeypatch.setattr(updater.subprocess, "Popen", lambda args, **kwargs: launched.append(args))
+    updater.apply_macos_dmg_update(dmg_file, app_bundle_path=app_bundle, current_pid=999999)
+    monkeypatch.undo()
+
+    script_path = launched[0][1]
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"}
+    res = subprocess.run(["/bin/bash", script_path], env=env, capture_output=True, text=True)
+
+    assert res.returncode == 0
+    assert (app_bundle / "version.txt").read_text(encoding="utf-8").strip() == "new-version"
+    assert not app_bundle.with_name(".LightDockerManager.app.new").exists()
+    assert not app_bundle.with_name(".LightDockerManager.app.bak").exists()
+
+
+def test_macos_update_script_preserves_existing_app_when_dmg_has_no_app(tmp_path, monkeypatch):
+    app_bundle = tmp_path / "LightDockerManager.app"
+    app_bundle.mkdir()
+    (app_bundle / "version.txt").write_text("old-version", encoding="utf-8")
+    dmg_file = tmp_path / "update.dmg"
+    dmg_file.write_bytes(b"dmg")
+
+    bin_dir = tmp_path / "fake_bin"
+    _make_fake_macos_tools(bin_dir, empty_dmg=True)
+
+    launched = []
+    monkeypatch.setattr(updater.subprocess, "Popen", lambda args, **kwargs: launched.append(args))
+    updater.apply_macos_dmg_update(dmg_file, app_bundle_path=app_bundle, current_pid=999999)
+    monkeypatch.undo()
+
+    script_path = launched[0][1]
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"}
+    res = subprocess.run(["/bin/bash", script_path], env=env, capture_output=True, text=True)
+
+    assert res.returncode == 1
+    assert app_bundle.exists()
+    assert (app_bundle / "version.txt").read_text(encoding="utf-8") == "old-version"
+
+
+def test_macos_update_script_preserves_existing_app_when_ditto_fails(tmp_path, monkeypatch):
+    app_bundle = tmp_path / "LightDockerManager.app"
+    app_bundle.mkdir()
+    (app_bundle / "version.txt").write_text("old-version", encoding="utf-8")
+    dmg_file = tmp_path / "update.dmg"
+    dmg_file.write_bytes(b"dmg")
+
+    bin_dir = tmp_path / "fake_bin"
+    _make_fake_macos_tools(bin_dir, ditto_fails=True)
+
+    launched = []
+    monkeypatch.setattr(updater.subprocess, "Popen", lambda args, **kwargs: launched.append(args))
+    updater.apply_macos_dmg_update(dmg_file, app_bundle_path=app_bundle, current_pid=999999)
+    monkeypatch.undo()
+
+    script_path = launched[0][1]
+    env = {**os.environ, "PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"}
+    subprocess.run(["/bin/bash", script_path], env=env, capture_output=True, text=True)
+
+    assert app_bundle.exists()
+    assert (app_bundle / "version.txt").read_text(encoding="utf-8") == "old-version"
 
 
 def test_apply_windows_exe_update_creates_batch_and_spawns_cmd(tmp_path, monkeypatch):
