@@ -425,21 +425,45 @@ def test_macos_update_raises_before_quit_when_admin_elevation_cancelled(tmp_path
     assert (app_bundle / "version.txt").read_text(encoding="utf-8") == "old-version"
 
 
-def test_apply_windows_exe_update_creates_batch_and_spawns_cmd(tmp_path, monkeypatch):
-    exe_file = tmp_path / "LightDockerManager.exe"
+def test_apply_windows_exe_update_restarts_with_fresh_runtime(tmp_path, monkeypatch):
+    exe_file = tmp_path / "LightDockerManager %.exe"
     exe_file.write_bytes(b"old-exe")
     downloaded = tmp_path / "downloaded.exe"
     downloaded.write_bytes(b"new-exe")
+    previous_runtime = tmp_path / "_MEI123"
+    system_path = os.defpath
+    original_path = str(previous_runtime) + os.pathsep + system_path
+    monkeypatch.setattr(updater.sys, "_MEIPASS", str(previous_runtime), raising=False)
+    monkeypatch.setattr(updater.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setenv("QT_PLUGIN_PATH", str(previous_runtime / "PySide6" / "plugins"))
+    monkeypatch.setenv("QML2_IMPORT_PATH", str(previous_runtime / "PySide6" / "qml"))
+    monkeypatch.setenv("PATH", original_path)
 
     launched = []
-    monkeypatch.setattr(updater.subprocess, "Popen", lambda args, **kwargs: launched.append(args))
+    monkeypatch.setattr(updater.subprocess, "Popen", lambda args, **kwargs: launched.append((args, kwargs)))
 
     updater.apply_windows_exe_update(downloaded, executable_path=exe_file, current_pid=4242)
 
-    staged = tmp_path / "LightDockerManager.new.exe"
+    staged = exe_file.with_suffix(".new.exe")
     assert staged.read_bytes() == b"new-exe"
-    assert len(launched) == 1
-    assert launched[0][:2] == ["cmd.exe", "/c"]
+    assert exe_file.read_bytes() == b"old-exe"
+    (args, kwargs), = launched
+    script = tmp_path / "ldm_update_4242.cmd"
+    assert args == ["cmd.exe", "/d", "/v:off", "/c", str(script)]
+    env = kwargs["env"]
+    assert env["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+    assert env["LDM_UPDATE_TARGET"] == str(exe_file.resolve())
+    assert env["LDM_UPDATE_STAGED"] == str(staged.resolve())
+    assert env["PATH"] == system_path
+    assert "QT_PLUGIN_PATH" not in env
+    assert "QML2_IMPORT_PATH" not in env
+    assert os.environ["PATH"] == original_path
+
+    batch = script.read_bytes()
+    assert b"\r\r\n" not in batch
+    assert b'for /L %%i in (1,1,15)' in batch
+    assert b"if not errorlevel 1 goto restart\r\n" in batch
+    assert b'goto cleanup\r\n:restart\r\nstart "" "%LDM_UPDATE_TARGET%"' in batch
 
 
 def test_update_dialog_hides_self_update_button_when_not_supported(monkeypatch):

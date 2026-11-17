@@ -199,19 +199,47 @@ def apply_windows_exe_update(downloaded_file, executable_path=None, current_pid=
         ":waitloop\r\n"
         f'tasklist /FI "PID eq {pid}" 2>NUL | find /I "{pid}" >NUL\r\n'
         "if not errorlevel 1 (\r\n"
-        "    timeout /t 1 /nobreak >NUL\r\n"
+        "    ping -n 2 127.0.0.1 >NUL\r\n"
         "    goto waitloop\r\n"
         ")\r\n"
-        f'if exist "{staged}" (\r\n'
-        f'    move /Y "{staged}" "{target}" >NUL\r\n'
+        "for /L %%i in (1,1,15) do (\r\n"
+        '    move /Y "%LDM_UPDATE_STAGED%" "%LDM_UPDATE_TARGET%" >NUL 2>&1\r\n'
+        "    if not errorlevel 1 goto restart\r\n"
+        "    ping -n 2 127.0.0.1 >NUL\r\n"
         ")\r\n"
-        f'start "" "{target}"\r\n'
+        "goto cleanup\r\n"
+        ":restart\r\n"
+        'start "" "%LDM_UPDATE_TARGET%"\r\n'
+        ":cleanup\r\n"
         'del "%~f0"\r\n'
     )
-    script_file.write_text(script_content, encoding="utf-8")
+    script_file.write_bytes(script_content.encode("ascii"))
+
+    # The restarted onefile app must unpack its own runtime before loading Qt.
+    env = {
+        **os.environ,
+        "PYINSTALLER_RESET_ENVIRONMENT": "1",
+        "LDM_UPDATE_STAGED": str(staged),
+        "LDM_UPDATE_TARGET": str(target),
+    }
+    unpack_dir = getattr(sys, "_MEIPASS", None)
+    if unpack_dir:
+        env.pop("QT_PLUGIN_PATH", None)
+        env.pop("QML2_IMPORT_PATH", None)
+        if "PATH" in env:
+            unpack_dir = os.path.normcase(os.path.normpath(unpack_dir))
+            env["PATH"] = os.pathsep.join(
+                entry for entry in env["PATH"].split(os.pathsep)
+                if os.path.normcase(os.path.normpath(entry)) != unpack_dir
+            )
 
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    subprocess.Popen(["cmd.exe", "/c", str(script_file)], creationflags=creationflags, close_fds=True)
+    subprocess.Popen(
+        ["cmd.exe", "/d", "/v:off", "/c", str(script_file)],
+        creationflags=creationflags,
+        close_fds=True,
+        env=env,
+    )
 
 
 def apply_macos_dmg_update(downloaded_file, app_bundle_path=None, current_pid=None):
