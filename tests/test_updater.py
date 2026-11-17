@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import ssl
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,6 +38,33 @@ def test_select_asset_for_platform():
     assert updater.select_asset_for_platform(assets, "freebsd") is None
 
 
+def test_macos_update_requests_use_bundled_ca_when_default_store_is_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(updater, "sys", SimpleNamespace(platform="darwin"))
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    monkeypatch.setattr(ssl, "create_default_context", lambda: ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT))
+    asset_url = "https://example.com/LightDockerManager.dmg"
+    requests = []
+
+    def urlopen(request, *, timeout, context):
+        assert context.cert_store_stats()["x509_ca"] > 0
+        assert context.verify_mode == ssl.CERT_REQUIRED
+        assert context.check_hostname
+        requests.append((request.full_url, timeout))
+        if request.full_url == updater.LATEST_RELEASE_URL:
+            return io.BytesIO(b'{"tag_name": "1.2.4"}')
+        return io.BytesIO(b"dmg")
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", urlopen)
+
+    assert updater.check_for_updates(current_version="1.2.4") is None
+    assert updater.download_release_asset(asset_url, tmp_path / "update.dmg").read_bytes() == b"dmg"
+    assert requests == [
+        (updater.LATEST_RELEASE_URL, updater.CHECK_TIMEOUT_SECONDS),
+        (asset_url, updater.REQUEST_TIMEOUT_SECONDS),
+    ]
+
+
 def test_check_for_updates_returns_release_info_when_newer(monkeypatch):
     payload = {
         "tag_name": "v2.0.0",
@@ -61,7 +89,7 @@ def test_check_for_updates_returns_release_info_when_newer(monkeypatch):
     monkeypatch.setattr(
         updater.urllib.request,
         "urlopen",
-        lambda req, timeout=15: DummyResponse(json.dumps(payload).encode("utf-8")),
+        lambda req, timeout=15, **kwargs: DummyResponse(json.dumps(payload).encode("utf-8")),
     )
 
     info = updater.check_for_updates(current_version="1.2.4", platform="darwin")
@@ -91,7 +119,7 @@ def test_check_for_updates_returns_none_when_up_to_date(monkeypatch):
     monkeypatch.setattr(
         updater.urllib.request,
         "urlopen",
-        lambda req, timeout=15: DummyResponse(json.dumps(payload).encode("utf-8")),
+        lambda req, timeout=15, **kwargs: DummyResponse(json.dumps(payload).encode("utf-8")),
     )
 
     assert updater.check_for_updates(current_version="1.2.4", platform="linux") is None
@@ -109,7 +137,7 @@ def test_download_release_asset_writes_file_and_reports_progress(tmp_path, monke
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(data))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15, **kwargs: DummyResponse(data))
 
     progress_calls = []
     dest = tmp_path / "update.bin"
@@ -132,7 +160,7 @@ def test_download_release_asset_raises_on_incomplete_read_and_removes_partial_fi
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15, **kwargs: DummyResponse(partial_data))
 
     dest = tmp_path / "update.bin"
     with pytest.raises(RuntimeError, match="Incomplete download: received 5 of 100 bytes") as exc_info:
@@ -154,7 +182,7 @@ def test_download_release_asset_verifies_expected_size_even_when_header_claims_s
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15, **kwargs: DummyResponse(partial_data))
 
     dest = tmp_path / "update.bin"
     with pytest.raises(RuntimeError, match="Incomplete download: received 5 of 100 bytes"):
@@ -175,7 +203,7 @@ def test_download_release_asset_verifies_expected_size_when_header_missing(tmp_p
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15, **kwargs: DummyResponse(partial_data))
 
     dest = tmp_path / "update.bin"
     with pytest.raises(RuntimeError, match="Incomplete download: received 5 of 50 bytes"):
@@ -443,7 +471,7 @@ def test_update_download_worker_emits_failed_signal_on_incomplete_download(monke
         def __exit__(self, *args):
             pass
 
-    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15: DummyResponse(partial_data))
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda req, timeout=15, **kwargs: DummyResponse(partial_data))
     release_info = {
         "version": "2.0.0",
         "tag_name": "v2.0.0",

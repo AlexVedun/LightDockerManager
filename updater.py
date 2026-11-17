@@ -1,12 +1,15 @@
 import json
 import os
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
 import tempfile
 import urllib.request
 from pathlib import Path
+
+import certifi
 
 from version import __version__
 
@@ -15,6 +18,16 @@ LATEST_RELEASE_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/lates
 CHECK_TIMEOUT_SECONDS = 3
 REQUEST_TIMEOUT_SECONDS = 15
 DOWNLOAD_CHUNK_SIZE = 64 * 1024
+
+
+def _open_update_url(request, timeout):
+    if sys.platform == "darwin" and not (os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR")):
+        # The bundled OpenSSL can point to a CA store that only exists on the build machine.
+        context = ssl.create_default_context()
+        context.load_verify_locations(cafile=certifi.where())
+        context.set_alpn_protocols(["http/1.1"])
+        return urllib.request.urlopen(request, timeout=timeout, context=context)
+    return urllib.request.urlopen(request, timeout=timeout)
 
 
 def parse_version(version_str):
@@ -70,7 +83,7 @@ def check_for_updates(current_version=__version__, platform=None):
             "User-Agent": f"LightDockerManager/{current_version}",
         },
     )
-    with urllib.request.urlopen(request, timeout=CHECK_TIMEOUT_SECONDS) as response:
+    with _open_update_url(request, CHECK_TIMEOUT_SECONDS) as response:
         payload = json.loads(response.read().decode("utf-8"))
 
     tag_name = (payload.get("tag_name") or "").strip()
@@ -95,7 +108,7 @@ def download_release_asset(url, destination_path, progress=None, expected_size=N
         url,
         headers={"User-Agent": f"LightDockerManager/{__version__}"},
     )
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+    with _open_update_url(request, REQUEST_TIMEOUT_SECONDS) as response:
         resp_headers = getattr(response, "headers", None) or {}
         content_length = resp_headers.get("Content-Length") if hasattr(resp_headers, "get") else None
         header_total = int(content_length) if content_length and str(content_length).isdigit() else None

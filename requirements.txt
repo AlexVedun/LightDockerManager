@@ -1,4 +1,5 @@
 PySide6>=6.12.0
 docker>=7.2.0
 paramiko>=5.1.0
+certifi
 pytest>=9.2.0
