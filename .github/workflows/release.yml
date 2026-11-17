@@ -122,7 +122,7 @@ jobs:
   macos:
     name: macOS Apple Silicon DMG
     needs: test
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Check out source
         uses: actions/checkout@v7

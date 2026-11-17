@@ -23,7 +23,8 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("LightDockerManager")
     app.setApplicationVersion(__version__)
-    app.setWindowIcon(QIcon(str(_icon_path())))
+    if sys.platform != "darwin" or not getattr(sys, "frozen", False):
+        app.setWindowIcon(QIcon(str(_icon_path())))
 
     settings = load_settings()
     language = resolve_language(settings)

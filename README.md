@@ -60,6 +60,10 @@ pwsh packaging/build_windows.ps1
 packaging/build_dmg.sh
 ```
 
+Building the DMG locally requires Xcode 26.5 or newer to compile the adaptive
+Dock icon for macOS Tahoe. The bundle also includes an ICNS icon for older
+macOS versions.
+
 Pushing a version tag (for example, `1.2.3`) runs tests and builds Linux
 AppImage, Windows EXE, and macOS Apple Silicon DMG files. If all builds pass,
 the workflow publishes a GitHub Release named after the tag, with automatically
